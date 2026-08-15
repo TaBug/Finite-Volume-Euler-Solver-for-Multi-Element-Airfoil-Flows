@@ -63,6 +63,7 @@ inline structFlux roe(vector<double>& UL, vector<double>& UR, double gamma, vect
 		cout << "Non-physical state!" << "\n";
 		cout << "Pressure:" << pR << "\n";
 		cout << "Density:" << rhoR << "\n";
+		exit(1);
 	}
 
 	// ensure positive pressure and density
@@ -93,8 +94,8 @@ inline structFlux roe(vector<double>& UL, vector<double>& UR, double gamma, vect
 	af = 0.5 * (ui * ui + vi * vi); // roe average kinetic energy (1/2*q^2)
 	ucp = ui * n[0] + vi * n[1]; // roe average normal velocity
 	c2 = gmi * (Hi - af); // roe average speed of sound squared
-	if (c2 < 0) {cout << "Non-physical state!" << "\n"; c2 = -c2;}
-	if (c2 < 1e-14) {c2 = 1e-14;} // keeps ci1 = 1/ci finite in a near-vacuum state
+	if (c2 < 0) {cout << "Non-physical state!" << "\n"; c2 = -c2; exit(1);}
+	// if (c2 < 1e-14) {c2 = 1e-14;} // keeps ci1 = 1/ci finite in a near-vacuum state
 	ci = sqrt(c2);
 	ci1 = 1.0 / ci;
 
@@ -166,6 +167,7 @@ inline structFlux rusanov(vector<double>& UL, vector<double>& UR, double gamma, 
 		cout << "Non-physical state!" << "\n";
 		cout << "Pressure:" << pL << "\n";
 		cout << "Density:" << rL << "\n";
+		exit(1);
 	}
 
 	// ensure positive pressure and density
@@ -193,13 +195,14 @@ inline structFlux rusanov(vector<double>& UL, vector<double>& UR, double gamma, 
 	pR = (gamma - 1) * (UR[3] - 0.5 * rR * pow(qR, 2));
 	if (pR < 0 || rR < 0) {
 		cout << "Non-physical state!" << "\n";
+		exit(1);
 	}
-	if (pR < 0) {
-		pR = -pR;
-	}
-	if (rR < 0) {
-		rR = -rR;
-	}
+	// if (pR < 0) {
+	// 	pR = -pR;
+	// }
+	// if (rR < 0) {
+	// 	rR = -rR;
+	// }
 	rHR = UR[3] + pR;
 	cR = sqrt(gamma * pR / rR);
 
@@ -253,13 +256,14 @@ inline structFlux HLLE(vector<double>& UL, vector<double>& UR, double gamma, vec
 		cout << "Non-physical state!" << "\n";
 		cout << "Pressure:" << pL << "\n";
 		cout << "Density:" << rL << "\n";
+		exit(1);
 	}
-	if (pL < 0) {
-		pL = -pL;
-	}
-	if (rL < 0) {
-		rL = -rL;
-	}
+	// if (pL < 0) {
+	// 	pL = -pL;
+	// }
+	// if (rL < 0) {
+	// 	rL = -rL;
+	// }
 	rHL = UL[3] + pL;
 	cL = sqrt(gamma * pL / rL);
 
@@ -281,13 +285,16 @@ inline structFlux HLLE(vector<double>& UL, vector<double>& UR, double gamma, vec
 	pR = (gamma - 1) * (UR[3] - 0.5 * rR * pow(qR, 2));
 	if (pR < 0 || rR < 0) {
 		cout << "Non-physical state!" << "\n";
+		cout << "Pressure:" << pR << "\n";
+		cout << "Density:" << rR << "\n";
+		exit(1);
 	}
-	if (pR < 0) {
-		pR = -pR;
-	}
-	if (rR < 0) {
-		rR = -rR;
-	}
+	// if (pR < 0) {
+	// 	pR = -pR;
+	// }
+	// if (rR < 0) {
+	// 	rR = -rR;
+	// }
 	rHR = UR[3] + pR;
 	cR = sqrt(gamma * pR / rR);
 
@@ -349,9 +356,9 @@ inline structFlux wallFlux(const vector<double>& u, const vector<double>& n, con
 	vb[0] = v[0] - (v[0] * n[0] + v[1] * n[1]) * n[0];
 	vb[1] = v[1] - (v[0] * n[0] + v[1] * n[1]) * n[1];
 	pb = (gam - 1) * (u[3] - .5 * rho * (pow(vb[0], 2) + pow(vb[1], 2)));
-	if ((pb < 0) || (rho < 0)) {cout << "Non-physical state on the walls!" << "\n";}
-	if (pb < 0) { pb = -pb; }
-	if (rho < 0) { rho = -rho; }
+	if ((pb < 0) || (rho < 0)) {cout << "Non-physical state on the walls!" << "\n"; exit(1);}
+	// if (pb < 0) { pb = -pb; }
+	// if (rho < 0) { rho = -rho; }
 	F = { 0,pb * n[0],pb * n[1],0 };
 	s_mag = sqrt(gam * pb / rho);
     

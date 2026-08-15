@@ -51,13 +51,6 @@ vector<double> computeFreestreamState(double Minf, double alphaDeg){
     return uInf;
 }
 
-/// Limiter Functions
-///
-
-//vector<double> computeNeighborIndices(){
-//
-//}
-
 vector<Vector3d> computeP(vector<vector<double>> const &nodes, vector<vector<double>> const &elem, vector<double> const &U_cell, int const iCell){
     double xCentroid = ((nodes[ elem[iCell][0]-1 ][0]) + (nodes[ elem[iCell][1]-1 ][0]) + (nodes[ elem[iCell][2]-1 ][0]))/3;
     double yCentroid = ((nodes[ elem[iCell][0]-1 ][1]) + (nodes[ elem[iCell][1]-1 ][1]) + (nodes[ elem[iCell][2]-1 ][1]))/3;
@@ -885,7 +878,7 @@ vector<double> UR_limiting(4);
             }
 
             vector<double> F = output.F;
-            s = output.smag;
+            s = output.s_mag;
   
             // Increment and decrement the residuals
             for(int j = 0; j < 4; j++){

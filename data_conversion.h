@@ -36,7 +36,7 @@ inline ofstream openForWrite(const string &filename) {
     return outputFile;
 }
 
-inline void state2text(vector<vector<double>> &U, const string &filename){
+inline void state2text(const vector<vector<double>> &U, const string &filename){
     ofstream outputFile = openForWrite(filename);
     for(int iElem = 0; iElem < U.size(); iElem++){
         for(int iU = 0; iU < 4; iU++){
@@ -44,6 +44,41 @@ inline void state2text(vector<vector<double>> &U, const string &filename){
         }
         outputFile << "\n";
     }
+}
+
+// The second-order solver carries the state as one contiguous [nElem*4] block
+// rather than a vector of 4-element vectors, so it gets its own overload here
+// instead of being unflattened just to be written out. Same file format.
+inline void state2text(const vector<double> &U, const string &filename){
+    ofstream outputFile = openForWrite(filename);
+    for(size_t iElem = 0; iElem * 4 < U.size(); iElem++){
+        for(int iU = 0; iU < 4; iU++){
+            outputFile << U[iElem * 4 + iU] << " ";
+        }
+        outputFile << "\n";
+    }
+}
+
+// Conversions between the two layouts, used at the seam between the first-order
+// solver (nested) and the second-order solver (flat).
+inline vector<double> flattenState(const vector<vector<double>> &U){
+    vector<double> flat(U.size() * 4);
+    for(size_t iElem = 0; iElem < U.size(); iElem++){
+        for(int iU = 0; iU < 4; iU++){
+            flat[iElem * 4 + iU] = U[iElem][iU];
+        }
+    }
+    return flat;
+}
+
+inline vector<vector<double>> unflattenState(const vector<double> &U){
+    vector<vector<double>> nested(U.size() / 4, vector<double>(4));
+    for(size_t iElem = 0; iElem < nested.size(); iElem++){
+        for(int iU = 0; iU < 4; iU++){
+            nested[iElem][iU] = U[iElem * 4 + iU];
+        }
+    }
+    return nested;
 }
 
 // Inverse of state2text: reads a [nElem x 4] state file into U. The element

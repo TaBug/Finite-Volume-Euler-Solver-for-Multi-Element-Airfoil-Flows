@@ -62,21 +62,18 @@ inline void FVM1st(meshData& mesh, vector<vector<double>>& u, int& opt, vector<d
         }
 
         // calculate L1 Residual
-        for (int i = 0; i < mesh.nelem; i++) {
-            for (int j = 0; j < 4; j++) {
-                resL1 += abs(residual[i][j]);
-            }
-        }
+        resL1 = computeL1ResidualNorm(residual);     
 
-        // NaN compares false against everything, so without this check the loop
-        // condition above would fall straight through and report a diverged run
-        // as having converged
+        /* 
+        NaN compares false against everything, so without this check 
+        the loop condition above would fall straight through and report 
+        a diverged run as having converged
+        */
         if (!isfinite(resL1)) {
             cerr << "ERROR: residual is " << resL1 << " at step " << t
-                 << " - the solve has diverged\n";
+                    << " - the solve has diverged\n";
             exit(EXIT_FAILURE);
         }
-
         t++;
         cout << resL1 << "\n";
 

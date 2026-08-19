@@ -15,92 +15,78 @@
 
 using namespace std;
 
-void rk2(int opt, vector<vector<double>> &u, vector<double> const &area ,vector<vector<double>> const &nodes, vector<vector<double>> const &elem, double Minf, double alphaDeg, vector<vector<double>> const &Bn, vector<vector<double>> const &In, vector<vector<int>> const &elemBounds, vector<vector<double>> const &bounds, vector<vector<double>> const &interiorFaces, vector<vector<int>> const &globalEdge, vector<vector<double>> const &I2E, vector<vector<double>> const &B2E, string limiterType, double convergedVal, vector<double>const &Area, int nelem, double CFL){
-    vector<vector<double>> f0(nelem,vector<double>(4));
-    vector<vector<double>> f1(nelem,vector<double>(4));
-    
-    double residSum = DBL_MAX;
-    int niter = 0;
+/* SSP-RK2 time stepping with local time stepping.
+ *
+ *     u^(1)   = u^n + dt * f(u^n)
+ *     u^(n+1) = u^n + dt/2 * ( f(u^n) + f(u^(1)) )
+ *
+ * i.e. Heun's method, the optimal two-stage SSP scheme, where f = -R/A. Both
+ * stages share the dt built from the stage-1 wave speeds, as a single step must.
+ *
+ * Non-physical states are not checked here: the flux functions in fluxes.h
+ * already report and exit on negative pressure or density.
+ */
+void rk2(meshData const& mesh, int opt, vector<vector<double>>& u, double Minf,
+		 double alphaDeg, string limiterType, double convergedVal, double CFL,
+		 int maxIter = 100000) {
 
-    while(residSum > convergedVal){
-        niter++;
-        // initialize L1 Residual and Residual to 0 every time iteration
-        vector<vector<double>> residual(nelem,vector<double>(4));
-        vector<vector<double>> residual2(nelem,vector<double>(4));
-        double resL1 = 0;
+	// Hoisted out of the loop: these are overwritten in full every step, so
+	// reallocating nelem-by-4 three times per iteration buys nothing.
+	vector<vector<double>> f0(mesh.nelem, vector<double>(4, 0.0));
+	vector<vector<double>> f1(mesh.nelem, vector<double>(4, 0.0));
+	vector<vector<double>> u_f0(mesh.nelem, vector<double>(4, 0.0));
+	vector<double> dt(mesh.nelem, 0.0);
 
-        // calculate residual of each element
-        residual = secondOrderFV(opt, u, Area, nodes, elem, Minf, alphaDeg, Bn, In, elemBounds, bounds, interiorFaces, globalEdge, I2E, B2E, limiterType);
-        
-        // calculate L1 Residual and stop calculation if < 10e-5
-        for (int i = 0; i < nelem; i++){
-            for (int j = 0; j < 4; j++){
-                resL1 += abs(residual[i][j]);
-            }
-        }
-        
-        for (int i = 0; i < nelem; i++){
-            bool hasNan = false;
-            for (int j = 0; j < 4; j++){
-                if(isnan(abs(residual[i][j]))){
-                    hasNan = true;
-                }
-            }
-            if(hasNan == true){
-                cout << i + 1 << "\n";
-            }
-        }
-        
-        if (resL1 < pow(10,-5)){
-                break;
-        }
-        
-        vector<vector<double>> f0(nelem,vector<double>(4,0));
-        vector<vector<double>> uf0(nelem,vector<double>(4,0));
-        // first step of RK2
-        for (int i = 0; i < nelem; i++){
-            double dt = (2*Area[i]*CFL)/residual[i][4]; // calculate local time step
-            
-            // find f0 and use it to find uf0 which is used for next step of RK2
-            for (int j = 0; j < 4; j++){
-                f0[i][j] = -residual[i][j]/Area[i];
-                uf0[i][j] = u[i][j] + dt*f0[i][j];
-            }
-        }
+	double resL1 = DBL_MAX;
+	int niter = 0;
+	bool converged = false;
 
-        // calculate residuals for the state uf0
-        residual2 = secondOrderFV(opt, uf0, Area, nodes, elem, Minf, alphaDeg, Bn, In, elemBounds, bounds, interiorFaces, globalEdge, I2E, B2E, limiterType);
-        
-        double sum = 0;
-        for(int i = 0; i < residual2.size(); i++){
-            for(int j = 0; j < residual2[0].size() - 1;j++){
-                sum += abs(residual2[i][j]);
-            }
-        }
-        
-        residSum = sum;
-        
-        cout << residSum << "\n";
-        
-        if(niter % 5 == 0){
-            cout << "\n\nIteration " << niter << " residual is " << residSum << "\n\n\n";
-        }
+	while (niter < maxIter) {
+		niter++;
 
-        // second step of RK2
-        for (int i = 0; i < nelem; i++){
-            double dt = (2*Area[i]*CFL)/residual[i][4]; // calculate local time step
-            
-            // find f1 and update state using f0 and f1
-            for (int j = 0; j < 4; j++){
-                f1[i][j] = -residual2[i][j]/Area[i];
+		// Stage 1. resL1 is the norm of R(u^n), the residual at the current state -
+		// this is the quantity proj.pdf Eq. (2) asks to be monitored, and the one
+		// FVM1st reports. Testing the intermediate stage's residual instead would
+		// converge to a different number.
+		vector<vector<double>> residual = secondOrderFV(mesh, opt, u, Minf, alphaDeg, limiterType);
+		resL1 = computeL1ResidualNorm(residual);
 
-                u[i][j] = u[i][j] + .5*dt*(f0[i][j] + f1[i][j]);
-            }
-        }
+		if (resL1 <= convergedVal) { converged = true; break; }
 
-    }
-    
-    // int stopHere = -1;
+		for (int i = 0; i < mesh.nelem; i++) {
+			if (residual[i][4] <= 0) {
+				cerr << "ERROR: element " << i << " accumulated no wave speed at step "
+					 << niter << " - the time step would be infinite\n";
+				exit(EXIT_FAILURE);
+			}
+			dt[i] = (2 * mesh.area[i] * CFL) / residual[i][4]; // local time step
+
+			for (int j = 0; j < 4; j++) {
+				f0[i][j]   = -residual[i][j] / mesh.area[i];
+				u_f0[i][j] = u[i][j] + dt[i] * f0[i][j];
+			}
+		}
+
+		// Stage 2, evaluated at the intermediate state and reusing the same dt
+		vector<vector<double>> residual2 = secondOrderFV(mesh, opt, u_f0, Minf, alphaDeg, limiterType);
+
+		for (int i = 0; i < mesh.nelem; i++) {
+			for (int j = 0; j < 4; j++) {
+				f1[i][j] = -residual2[i][j] / mesh.area[i];
+				u[i][j]  = u[i][j] + 0.5 * dt[i] * (f0[i][j] + f1[i][j]);
+			}
+		}
+
+		if (niter % 5 == 0) {
+			cout << "Iteration " << niter << " residual is " << resL1 << "\n";
+		}
+	}
+
+	if (converged) {
+		cout << "SSP-RK2 converged in " << niter << " iterations (R = " << resL1 << ")\n";
+	} else {
+		cout << "Maximum time steps reached (R = " << resL1 << ")\n";
+	}
 
 }
 

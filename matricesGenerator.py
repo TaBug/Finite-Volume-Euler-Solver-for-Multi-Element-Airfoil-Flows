@@ -13,7 +13,7 @@ def readgri(fname):
     for i in range(NB):
         s = f.readline().split()
         Nb = int(s[0])
-        Bname = np.append(Bname, [i for s in range(Nb)])
+        Bname = np.append(Bname, [i + 1 for s in range(Nb)])
         Bi = np.array([[int(s) for s in f.readline().split()] for n in range(Nb)])
         B = Bi if (B.size == 0) else np.append(B, Bi, axis=0)
 
@@ -28,12 +28,11 @@ def readgri(fname):
         Ne0 += ne
     f.close()
     Mesh = {'V': V, 'E': E, 'B': B, 'Bname': Bname}
-    return V, E, B, Bname
+    return Mesh
 
 
 def getI2E(fnameInput, fnameOutput):
     nodes, NE, NB, NBName = readgri(fnameInput)
-    print(NB, NB.shape)
     output = np.array([[]])
     faces = np.array([[]])
     with open(fnameOutput, 'w') as f:
@@ -51,7 +50,6 @@ def getI2E(fnameInput, fnameOutput):
 
                 newFace = np.array([[elem[node1], elem[node2]]])
                 if np.isin(NB, newFace).all(axis=1).any():
-                    print(np.isin(NB, newFace).all(axis=1))
                     continue
 
                 if faces.size == 0:
@@ -75,31 +73,32 @@ def getI2E(fnameInput, fnameOutput):
 
 
 def getB2E(fnameInput):
-    nodes, NE, NB, NBName = readgri(fnameInput)
-    elems = []
-    faces = []
-    nBGroups = []
-
+    Mesh = readgri(fnameInput)
+    NE = Mesh['E']
+    NB = Mesh['B']
+    NBName = Mesh['Bname']
+    output = np.array([[]], dtype=int)
+    iElem = len(NE)
     for ib, nb in enumerate(NB):
-        iElem = np.where(np.isin(NE, nb).all(axis=1))
+        for i, ne in enumerate(np.isin(NE, nb)):
+            if np.count_nonzero(ne == True) == 2:
+                iElem = i
+                break
         node1 = nb[0]
         node2 = nb[1]
         elem = NE[iElem]
-        inode1 = np.where(elem, node1)
-        inode2 = np.where(elem, node2)
+        inode1 = np.where(elem == node1)[0][0]
+        inode2 = np.where(elem == node2)[0][0]
         iface = 3 - inode1 - inode2
 
-        elems.append(elem)
-        faces.append(iface)
-        nBGroups.append(NBName[ib])
-
-    output = np.zeros([len(elems), 3])
+        newB = np.array([[int(iElem + 1), int(iface + 1), int(NBName[ib])]])
+        if output.size == 0:
+            output = newB
+        else:
+            output = np.append(output, newB, axis=0)
     with open('B2E.txt', 'w') as f:
-        for i in range(len(elems)):
-            f.write(f'{int(elems[i])} {int(faces[i])} {int(nBGroups[i])}\n')
-            output[i][0] = elems[i]
-            output[i][1] = faces[i]
-            output[i][2] = nBGroups[i]
+        for i in range(len(output)):
+            f.write(f'{int(output[i][0])} {int(output[i][1])} {int(output[i][2])}\n')
         f.close()
     return output
 

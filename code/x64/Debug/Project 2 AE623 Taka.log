@@ -1,0 +1,324 @@
+﻿  test_flux.cpp
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\elem2Edge.h(76,50): warning C4244: '=': conversion from 'const _Ty' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+          and
+          [
+              _Ty=int
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\elem2Edge.h(77,50): warning C4244: '=': conversion from 'const _Ty' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+          and
+          [
+              _Ty=int
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\elem2Edge.h(84,52): warning C4244: '=': conversion from 'const _Ty' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+          and
+          [
+              _Ty=int
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\elem2Edge.h(85,52): warning C4244: '=': conversion from 'const _Ty' to '_Ty', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+          and
+          [
+              _Ty=int
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(63,47): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(63,80): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(63,113): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(64,47): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(64,80): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(64,113): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(98,70): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(98,112): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(98,157): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(98,199): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(101,47): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(101,80): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(101,113): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(102,47): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(102,80): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(102,113): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,57): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,86): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,115): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,146): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,175): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(228,204): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(239,63): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(239,105): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(239,150): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(239,192): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(242,63): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(242,105): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(242,150): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(242,192): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(257,44): warning C4805: '!=': unsafe mix of type 'const _Ty' and type 'bool' in operation
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,57): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,86): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,115): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,146): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,175): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(302,204): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(308,41): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(309,41): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(578,41): warning C4244: '=': conversion from '_Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(579,41): warning C4244: '=': conversion from '_Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(584,41): warning C4244: '=': conversion from '_Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(753,41): warning C4244: '=': conversion from '_Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(754,41): warning C4244: '=': conversion from '_Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(759,39): warning C4244: '=': conversion from 'const _Ty' to 'int', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(789,53): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(789,87): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(789,121): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(790,53): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(790,87): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(790,121): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(797,57): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(797,91): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(797,125): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(798,57): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(798,91): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\solver.h(798,125): warning C4244: 'argument': conversion from '_Ty' to 'const unsigned __int64', possible loss of data
+          with
+          [
+              _Ty=double
+          ]
+C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\test_flux.cpp(37,13): warning C4326: return type of 'main' should be 'int' instead of 'void'
+  Project 2 AE623 Taka.vcxproj -> C:\Users\david\OneDrive - Umich\UM\Courses\AE 623\Projects\Project 2\Project 2 Taka\code Taka\x64\Debug\Project 2 AE623 Taka.exe

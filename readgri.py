@@ -8,8 +8,8 @@ from scipy import sparse
 # BE contains (n1, n2, elem) for each boundary edge
 def edgehash(E, B):
     Ne = E.shape[0]; Nn = np.amax(E)+1
-    H = sparse.lil_matrix((Nn, Nn), dtype=np.int)
-    IE = np.zeros([int(np.ceil(Ne*1.5)),4], dtype=np.int)
+    H = sparse.lil_matrix((Nn, Nn), dtype=int)
+    IE = np.zeros([int(np.ceil(Ne*1.5)),4], dtype=int)
     ni = 0
     for e in range(Ne):
         for i in range(3):
@@ -25,7 +25,7 @@ def edgehash(E, B):
     # boundaries
     nb0 = nb = 0
     for g in range(len(B)): nb0 += B[g].shape[0]
-    BE = np.zeros([nb0,4], dtype=np.int)
+    BE = np.zeros([nb0,4], dtype=int)
     for g in range(len(B)):
         Bi = B[g]
         for b in range(Bi.shape[0]):
@@ -57,5 +57,5 @@ def readgri(fname):
         Ne0 += ne
     # make IE, BE structures
     IE, BE = edgehash(E, B)
-    Mesh = {'V':V, 'E':E, 'IE':IE, 'BE':BE, 'Bname':Bname }
+    Mesh = {'V':V, 'E':E, 'B':B, 'IE':IE, 'BE':BE, 'Bname':Bname }
     return Mesh

@@ -88,16 +88,26 @@ int main() {
     }
 
     cout << "Running second-order Runge-Kutta finite volume method...\n";
+
+    // Everything about the mesh that the residual needs - face normals, edge
+    // lengths, reconstruction offsets, the freestream state - is fixed for the
+    // whole solve, so it is built once here rather than per face per iteration.
+    meshGeom geom = buildMeshGeom(mesh, Minf, alphaDeg);
+
+    // The second-order path carries the state flat (stride 4); the first-order
+    // solver above still uses the nested layout, so convert at the seam.
+    vector<double> uFlat = flattenState(u_firstOrder);
+
     // "NONE" for now: the BJ and LCD limiters are implemented in solver.h but are
-    // not yet called from secondOrderFV, which rejects any other value rather than
+    // not yet called from the residual, which rejects any other value rather than
     // quietly running unlimited.
-    rk2(mesh, opt, u_firstOrder, Minf, alphaDeg, "NONE", 1e-5, CFL);
+    rk2(mesh, geom, opt, uFlat, "NONE", 1e-5, CFL);
     cout << "Second-order Runge-Kutta finite volume method has converged!\n";
 
-    // rk2 updates u_firstOrder in place and writes nothing itself, so the save
+    // rk2 updates uFlat in place and writes nothing itself, so the save
     // happens here - the message below used to announce a file that never existed
     string outFilename = solutionFile("secondOrder");
-    state2text(u_firstOrder, outFilename);
+    state2text(uFlat, outFilename);
     cout << "Solution saved to '" << outFilename << "'\n";
     return 0;
 }

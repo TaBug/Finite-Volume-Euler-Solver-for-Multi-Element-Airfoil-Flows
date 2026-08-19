@@ -34,7 +34,7 @@ if not exist "%EIGEN_DIR%\Eigen\Dense" (
 REM _USE_MATH_DEFINES is set here, not in a header: it only has an effect before
 REM the first <cmath> in a translation unit, so a header-level #define silently
 REM stops working as soon as the include order changes.
-cl /nologo /EHsc /std:c++17 /Zi /W3 ^
+cl /nologo /EHsc /std:c++17 /O2 /DNDEBUG /Zi /W3 ^
    /D_USE_MATH_DEFINES ^
    /I "%EIGEN_DIR%" ^
    /Fe:"%~2" /Fo:"%OBJDIR%\\" /Fd:"%OBJDIR%\\" ^

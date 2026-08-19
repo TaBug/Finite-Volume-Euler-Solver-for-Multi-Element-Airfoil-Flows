@@ -84,16 +84,22 @@ vector<vector<double>> getRes(const meshData& mesh, int& opt, vector<vector<doub
         structFlux output;
         if (mesh.B2E[i][3] == 0) { // 0 = farfield, 1 = wall (set from the .gri group title)
 
-            // output = roe(uinf,uTemp,gamma,n);
-
+            // Bn points OUT of the domain, i.e. out of uTemp's element, so the
+            // interior state is the LEFT one and the freestream is the ghost on
+            // the right - the same orientation the interior loop above uses, and
+            // the same one secondOrderFV uses. Passing (uinf, uTemp) instead put
+            // the exterior state on the left while leaving the normal pointing
+            // outward, which negates the central part of the flux while leaving
+            // the dissipation alone (F(a,b,n) = 0.5(f(a)+f(b)).n - 0.5s(b-a), so
+            // swapping a and b is not a sign flip).
             if (opt == 1) {
-                output = roe(uinf,uTemp,gamma,n);
+                output = roe(uTemp,uinf,gamma,n);
             }
             else if (opt == 2){
-                output = rusanov(uinf,uTemp,gamma,n);
+                output = rusanov(uTemp,uinf,gamma,n);
             }
             else if (opt == 3){
-                output = HLLE(uinf,uTemp,gamma,n);
+                output = HLLE(uTemp,uinf,gamma,n);
             }
         } else {
             output = wallFlux(uTemp,n,gamma);
@@ -101,9 +107,12 @@ vector<vector<double>> getRes(const meshData& mesh, int& opt, vector<vector<doub
         F = output.F;
         s = output.s_mag;
 
-        // add F*length to residual
+        // add F*length to residual. R_i = sum over faces of Fhat.n_out * dl, and
+        // n_out points out of this element on a boundary face, so this ADDS -
+        // exactly as the interior loop adds to its left element. Subtracting here
+        // reversed the wall pressure force and the farfield flux.
         for (int j = 0; j < 4; j++) {
-            residual[elem][j] -= F[j] * length;
+            residual[elem][j] += F[j] * length;
         }
         // add wave speed
         residual[elem][4] += s * length;

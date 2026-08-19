@@ -25,7 +25,7 @@ using namespace Eigen;
 // main.cpp includes <filesystem> ahead of this header, so a #define here is dead.
 // constexpr double PI = 3.14159265358979323846;
 
-double computeL1ResidualNorm(vector<vector<double>>& residuals) {
+double computeL1ResidualNorm(vector<vector<double>> const& residuals) {
 	double L1ResidualNorm = 0; // initialize L1 residual to 0 every time iteration
 
 	// calculate L1 Residual and stop calculation if < 10e-5
@@ -596,7 +596,7 @@ inline faceGeom computeFaceGeom(meshData const& mesh, int iFaceGlobal) {
 // Riemann solver selection. The numbering matches the prompt FVM1st shows the user.
 enum fluxOption { FLUX_ROE = 1, FLUX_RUSANOV = 2, FLUX_HLLE = 3 };
 
-inline structFlux computeFlux(int opt, vector<double>& uL, vector<double>& uR, vector<double>& n) {
+inline structFlux computeFlux(int opt, vector<double> const& uL, vector<double> const& uR, vector<double> const& n) {
 	switch (opt) {
 		case FLUX_ROE:     return roe(uL, uR, 1.4, n);
 		case FLUX_RUSANOV: return rusanov(uL, uR, 1.4, n);
@@ -608,7 +608,212 @@ inline structFlux computeFlux(int opt, vector<double>& uL, vector<double>& uR, v
 	exit(EXIT_FAILURE);
 }
 
-// 2nd Order Finite Volume Driver
+/* ===================================================================
+ * Fast path: precomputed geometry + flat state arrays
+ *
+ * The mesh does not move, so everything the residual needs about a face is
+ * computed once here instead of once per face per pass per RK stage: the
+ * normal, the edge length, and - since the centroids are fixed too - the
+ * reconstruction offset (face midpoint minus cell centroid) directly, so the
+ * inner loop never touches mesh.nodes or mesh.elem at all.
+ *
+ * State and residual are flat arrays (stride 4 and 5) rather than
+ * vector<vector<double>>: one contiguous block instead of nelem separate heap
+ * allocations chased through a pointer table.
+ * =================================================================== */
+
+struct faceCache {
+	int iElemL;
+	int iElemR;        // -1 on a boundary face
+	int isWall;        // only meaningful when iElemR < 0
+	double nx, ny;     // unit normal, pointing out of iElemL
+	double len;
+	double dxL, dyL;   // face midpoint minus centroid of the left element
+	double dxR, dyR;   // ... and of the right element (unused on a boundary)
+};
+
+struct meshGeom {
+	vector<faceCache> faces;
+	double uinf[4];    // freestream state, so the farfield ghost costs no trig
+};
+
+// Build once, right after buildMeshTopology, and pass to every residual call.
+inline meshGeom buildMeshGeom(meshData const& mesh, double Minf, double alphaDeg) {
+	meshGeom g;
+	int nfaces = mesh.niedge + mesh.nbedge;
+	g.faces.resize(nfaces);
+
+	// Centroids are needed per face but there are only nelem of them, so they
+	// are gathered once here and folded into the per-face offsets below.
+	vector<Vector2d> cent(mesh.nelem);
+	for (int e = 0; e < mesh.nelem; e++) cent[e] = elementCentroid(mesh.nodes, mesh.elem, e);
+
+	for (int i = 0; i < nfaces; i++) {
+		faceGeom f = computeFaceGeom(mesh, i);
+		faceCache& c = g.faces[i];
+		c.iElemL = f.iElemL;
+		c.iElemR = f.isBound ? -1 : f.iElemR;
+		c.isWall = (f.isBound && mesh.bounds[f.iFaceLocal][3] == 1) ? 1 : 0;
+		c.nx = f.n[0];
+		c.ny = f.n[1];
+		c.len = f.length;
+		c.dxL = f.midpoint[0] - cent[f.iElemL][0];
+		c.dyL = f.midpoint[1] - cent[f.iElemL][1];
+		if (c.iElemR >= 0) {
+			c.dxR = f.midpoint[0] - cent[f.iElemR][0];
+			c.dyR = f.midpoint[1] - cent[f.iElemR][1];
+		} else {
+			c.dxR = c.dyR = 0.0;
+		}
+	}
+
+	vector<double> uinf = computeFreestreamState(Minf, alphaDeg);
+	for (int k = 0; k < 4; k++) g.uinf[k] = uinf[k];
+	return g;
+}
+
+// Scratch space for the gradient, owned by the caller so it is allocated once
+// for the whole solve rather than twice per time step.
+struct fvWorkspace {
+	vector<double> grad;   // [nelem][4][x,y], flattened - stride 8 per element
+	explicit fvWorkspace(int nelem) : grad(size_t(nelem) * 8, 0.0) {}
+};
+
+// Flat-array counterpart of computeBoundaryState: same wall projection and same
+// farfield state, writing four doubles instead of returning a vector.
+inline void boundaryStateFlat(const double* U_cell, bool isWall, const double* uinf,
+							  double nx, double ny, double* Ub) {
+	if (!isWall) { // farfield
+		Ub[0] = uinf[0]; Ub[1] = uinf[1]; Ub[2] = uinf[2]; Ub[3] = uinf[3];
+		return;
+	}
+	double rho = U_cell[0];
+	double vx = U_cell[1] / rho, vy = U_cell[2] / rho;
+	double vn = vx * nx + vy * ny;
+	Ub[0] = rho;
+	Ub[1] = rho * (vx - vn * nx);
+	Ub[2] = rho * (vy - vn * ny);
+	Ub[3] = U_cell[3];
+}
+
+// The flux is a template parameter, not a switch inside the loop: a function
+// pointer known at compile time is a direct, inlinable call, so the flux body
+// is folded into the face loop instead of costing a call per face.
+template <double (*FluxCore)(const double*, const double*, double, double, double, double*)>
+static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
+									fvWorkspace& ws, const double* u, double* R) {
+	const int nelem = mesh.nelem;
+	double* grad = ws.grad.data();
+	fill(ws.grad.begin(), ws.grad.end(), 0.0);
+	fill(R, R + size_t(nelem) * 5, 0.0);
+
+	// Pass 1: grad(u)_i = (1/A_i) * sum over faces of uhat * n_out * dl
+	for (size_t i = 0; i < g.faces.size(); i++) {
+		faceCache const& f = g.faces[i];
+		const double* uL = u + size_t(f.iElemL) * 4;
+		double ghost[4];
+		const double* uR;
+		if (f.iElemR < 0) {
+			boundaryStateFlat(uL, f.isWall != 0, g.uinf, f.nx, f.ny, ghost);
+			uR = ghost;
+		} else {
+			uR = u + size_t(f.iElemR) * 4;
+		}
+
+		double* gL = grad + size_t(f.iElemL) * 8;
+		if (f.iElemR >= 0) {
+			double* gR = grad + size_t(f.iElemR) * 8;
+			for (int k = 0; k < 4; k++) {
+				double c = 0.5 * (uL[k] + uR[k]) * f.len;
+				double cx = c * f.nx, cy = c * f.ny;
+				gL[k * 2] += cx; gL[k * 2 + 1] += cy;
+				// the same normal points INTO the right element, hence the sign flip
+				gR[k * 2] -= cx; gR[k * 2 + 1] -= cy;
+			}
+		} else {
+			for (int k = 0; k < 4; k++) {
+				double c = 0.5 * (uL[k] + uR[k]) * f.len;
+				gL[k * 2] += c * f.nx; gL[k * 2 + 1] += c * f.ny;
+			}
+		}
+	}
+
+	// Dividing each gradient by its element area
+	for (int e = 0; e < nelem; e++) {
+		double* ge = grad + size_t(e) * 8;
+		double A = mesh.area[e];
+		for (int k = 0; k < 8; k++) ge[k] /= A;
+	}
+
+	// Pass 2: reconstruct to each face midpoint and accumulate the flux residual
+	for (size_t i = 0; i < g.faces.size(); i++) {
+		faceCache const& f = g.faces[i];
+		const double* gL = grad + size_t(f.iElemL) * 8;
+		const double* cL = u + size_t(f.iElemL) * 4;
+		double uLr[4], uRr[4];
+		for (int k = 0; k < 4; k++)
+			uLr[k] = cL[k] + gL[k * 2] * f.dxL + gL[k * 2 + 1] * f.dyL;
+
+		if (f.iElemR >= 0) {
+			const double* gR = grad + size_t(f.iElemR) * 8;
+			const double* cR = u + size_t(f.iElemR) * 4;
+			for (int k = 0; k < 4; k++)
+				uRr[k] = cR[k] + gR[k * 2] * f.dxR + gR[k * 2 + 1] * f.dyR;
+		} else {
+			// Built from the already-reconstructed uLr, so the wall tangency holds
+			// at the point the flux actually sees.
+			boundaryStateFlat(uLr, f.isWall != 0, g.uinf, f.nx, f.ny, uRr);
+		}
+
+		double F[4];
+		double s = FluxCore(uLr, uRr, 1.4, f.nx, f.ny, F);
+
+		double* RL = R + size_t(f.iElemL) * 5;
+		for (int k = 0; k < 4; k++) RL[k] += F[k] * f.len;
+		RL[4] += s * f.len;
+
+		if (f.iElemR >= 0) {
+			double* RR = R + size_t(f.iElemR) * 5;
+			for (int k = 0; k < 4; k++) RR[k] -= F[k] * f.len;
+			RR[4] += s * f.len;
+		}
+	}
+}
+
+// R must have room for nelem*5 doubles, u must hold nelem*4.
+inline void secondOrderResidual(meshData const& mesh, meshGeom const& g, fvWorkspace& ws,
+								int opt, const double* u, double* R, string const& limiterType) {
+	if (limiterType != "NONE") {
+		cerr << "ERROR: limiterType \"" << limiterType << "\" is not implemented yet.\n"
+			 << "       Only \"NONE\" (unlimited reconstruction) is available; the BJ and LCD\n"
+			 << "       limiters exist as functions but are not called from this driver.\n";
+		exit(EXIT_FAILURE);
+	}
+	switch (opt) {
+		case FLUX_ROE:     secondOrderResidualImpl<roeCore>(mesh, g, ws, u, R);     return;
+		case FLUX_RUSANOV: secondOrderResidualImpl<rusanovCore>(mesh, g, ws, u, R); return;
+		case FLUX_HLLE:    secondOrderResidualImpl<hlleCore>(mesh, g, ws, u, R);    return;
+	}
+	cerr << "ERROR: unknown flux option " << opt << " (expected 1 = Roe, 2 = Rusanov, 3 = HLLE)\n";
+	exit(EXIT_FAILURE);
+}
+
+// L1 norm over the four residual components of a flat [nelem][5] residual.
+inline double computeL1ResidualNorm(const double* residuals, int nelem) {
+	double L1ResidualNorm = 0;
+	for (int iElem = 0; iElem < nelem; iElem++) {
+		for (int iU = 0; iU < 4; iU++) {
+			L1ResidualNorm += abs(residuals[size_t(iElem) * 5 + iU]);
+		}
+	}
+	return L1ResidualNorm;
+}
+
+// 2nd Order Finite Volume Driver - REFERENCE IMPLEMENTATION
+//
+// Superseded by secondOrderResidual above, which is what rk2 calls. This one is
+// kept because it is the readable statement of the scheme and the baseline the
+// fast path is checked against (see profile_fast.cpp); it is not on the hot path.
 //
 // Two sweeps over the faces: the first accumulates the Green-Gauss gradient in
 // every cell, the second reconstructs the state to each face midpoint and
@@ -616,7 +821,7 @@ inline structFlux computeFlux(int opt, vector<double>& uL, vector<double>& uR, v
 // components, then the edge-length-weighted wave speed tally that rk2 divides
 // into the cell area for its local time step.
 vector<vector<double>> secondOrderFV(meshData const& mesh, int opt, vector<vector<double>>& u,
-									 double Minf, double alphaDeg, string limiterType) {
+									 double const& Minf, double alphaDeg, string limiterType) {
 
 	// barthJespersen and computeL_LCD above are not wired into this driver, so a
 	// "BJ" or "MP" run would silently produce an unlimited reconstruction. Refuse

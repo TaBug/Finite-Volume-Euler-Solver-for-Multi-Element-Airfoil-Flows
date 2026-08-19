@@ -153,7 +153,7 @@ def plotCp(x, cp, savePath=None):
 
 
 def main():
-    datFile = 'dat/rusanov_CFL0.9_secondOrder.dat' # converged solution from first-order FVM
+    datFile = 'dat/rusanov_CFL0.9_firstOrder.dat' # converged solution from first-order FVM
     mesh = 'gri/smoothed_local_all.gri' # mesh file
     u = np.loadtxt(datFile)
     Minf = 0.25 # freestream Mach number - must match main.cpp

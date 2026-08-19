@@ -74,8 +74,12 @@ inline void FVM1st(meshData& mesh, vector<vector<double>>& u, int& opt, vector<d
                     << " - the solve has diverged\n";
             exit(EXIT_FAILURE);
         }
-        t++;
-        cout << resL1 << "\n";
+        
+        t++; // increment time step
+
+        if (t % 5 == 0) {
+            cout << "Iteration " << t << " residual is " << resL1 << "\n";
+        }
 
         if (t >= maxIter) {
             cout << "Maximum time steps reached (R = " << resL1 << ")\n";

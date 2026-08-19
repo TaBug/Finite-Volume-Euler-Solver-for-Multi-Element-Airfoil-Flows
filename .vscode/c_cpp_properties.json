@@ -13,7 +13,11 @@
                 "_USE_MATH_DEFINES"
             ],
             "windowsSdkVersion": "10.0.26100.0",
-            "compilerPath": "cl.exe",
+            // Absolute path: cl.exe is not on PATH (build.bat loads vcvars itself),
+            // so a bare "cl.exe" here leaves IntelliSense with no MSVC system headers
+            // and every #include reports "cannot open source file". Update the
+            // 14.51.36231 component if the VC toolset is upgraded.
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64"

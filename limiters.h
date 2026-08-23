@@ -1,140 +1,90 @@
+#ifndef LIMITERS_H
+#define LIMITERS_H
+
+#include <iostream>
 #include <vector>
 #include <algorithm>
-#include <iostream>
+#include <cmath>
+#include "processMesh.h"
 
+using namespace std;
 
-// Obtaining all elements neighboring elemL
-vector<int> iNeighbor;
-vector<int> E2F_i = mesh.E2F[iElemL]; // global face indices for the current element
-		
-    // For each face, find the two elements bounding the face, 
-    // and push the element which is not elemL into iNeighbor
-for (int iF = 0; iF < 3; iF++) {
-    vector<int> adjElems = findAdjElem(mesh.elem, mesh.I2E, mesh.B2E, mesh.elemBounds, mesh.bounds, mesh.interiorFaces, globalEdge, globalFaceIndices[iF]);
-    auto it = find(adjElems.begin(), adjElems.end(), iElemL);
+// Barth-Jespersen limiter, vertex based.
+//
+// For each element: collect the min/max cell average over the element itself and
+// its face neighbours, reconstruct to each of the three vertices with the
+// already-area-divided gradient in ws.grad, and shrink alpha until no vertex value
+// overshoots that range. One alpha per state variable per element.
+//
+// alpha must have room for nelem*4 doubles; it is fully written here (seeded to 1
+// per element), so the caller does not have to pre-fill it.
+//
+// mesh.r_node_centroid holds node-minus-centroid offsets - see genCentroid2NodesVec.
+inline void computeBarthJespersenLimiter(double* alpha, meshData const& mesh, const double* u, fvWorkspace& ws) {
+	const double* grad = ws.grad.data();
 
-    adjElems.erase(it);
-    if (adjElems.size() == 1 && adjElems[0] >= 0) {
-        // !adjElems.empty()
-        iNeighbor.push_back(adjElems[0]);
+	for (int iElem = 0; iElem < mesh.nelem; iElem++) {
+		const double* u0 = u + size_t(iElem) * 4; // cell average of the current element
+		const double* grad0 = grad + size_t(iElem) * 8; // gradient of the current element
 
-    }
-    else {
+		double* alphaElem = alpha + size_t(iElem) * 4; // limiter values for the current element
 
-        iGlobal2Local neighborBoundFace = iG2L(globalFaceIndices[iF], mesh.bounds, mesh.interiorFaces);
-        int iNeighborFaceLocal = neighborBoundFace.index;
-        if (mesh.bounds[iNeighborFaceLocal][3] == 0) { // farfield
-            iNeighbor.push_back(-1);
-        }
-        else { // wall
-            iNeighbor.push_back(-2);
-        }
-
-
-    }
-
+		// Initialize uMin and uMax with the cell average of the current element, and
+		// alpha with 1 (unlimited) so the mins below can only tighten it.
+		double uMin[4], uMax[4];
+		for (int k = 0; k < 4; k++) {
+			uMin[k] = u0[k];
+			uMax[k] = u0[k];
+			alphaElem[k] = 1.0;
 		}
 
-		// // Obtaining all edges bounding an element and local face numbering for these edges
-		// vector<int> iFaces = { 0,1,2 }; // adjacent elements found using elemBounds, therefore the edges were indexed in order of the local face index
+		for (int iFaceLocal = 0; iFaceLocal < 3; iFaceLocal++) {
+			int iFaceGlobal = mesh.E2F[iElem][iFaceLocal]; // Get the global face index for the current local face
 
-		// // Initializing the normal vector pointing from L to R
-		// Vector2d n;
+			// Global face indices run interior first, boundary second (see genE2F), and
+			// I2E only has niedge rows - indexing it with a boundary face reads off the
+			// end. A boundary face has no neighbouring cell, so it contributes nothing to
+			// the min/max stencil; the element's own average keeps alpha well defined.
+			if (iFaceGlobal >= mesh.niedge) continue;
 
-		if (isBoundFace == false) { // interior edge
+			// I2E stores 1-based element numbers, iElem is 0-based - convert before comparing
+			int elemL = int(mesh.I2E[iFaceGlobal][0]) - 1;
+			int elemR = int(mesh.I2E[iFaceGlobal][2]) - 1;
+			int elem_i = (elemL == iElem) ? elemR : elemL; // Get the neighboring element index
+			const double* u_i = u + size_t(elem_i) * 4; // cell average of the neighboring element
 
-			n = { mesh.In[iFaceLocal][0], mesh.In[iFaceLocal][1] };
-
-		}
-		else { // boundary edge
-
-			n = { mesh.Bn[iFaceLocal][0], mesh.Bn[iFaceLocal][1] };
-
-		}
-
-		// Gradient Calculation
-		vector<Vector2d> L;
-
-		if (limiterType == "BJ") {
-
-			L = barthJespersen(mesh.nodes, mesh.elem, mesh.area, U, iElemL, iNeighbor, Minf, alphaDeg, mesh.Bn, mesh.elemBounds, mesh.bounds, mesh.interiorFaces, iFaces);
-
-		}
-		else if (limiterType == "MP") {
-
-			vector<Vector2d> L_input = computeL(mesh.nodes, mesh.elem, U, iElemL, iNeighbor, iFaces, Minf, alphaDeg, mesh.Bn, mesh.bounds, mesh.interiorFaces, mesh.elemBounds);
-			L = computeL_LCD(L_input, U, mesh.nodes, mesh.elem, iElemL, iNeighbor, iFaces, Minf, alphaDeg, mesh.Bn, mesh.elemBounds, mesh.bounds, mesh.interiorFaces);
-
-		}
-		else if (limiterType == "NONE") {
-
-			L = computeL(mesh.nodes, mesh.elem, U, iElemL, iNeighbor, iFaces, Minf, alphaDeg, mesh.Bn, mesh.bounds, mesh.interiorFaces, mesh.elemBounds);
-
-		}
-		else {
-
-			cout << "Valid Limiter Type not Used\n";
-			return vector<vector<double>>(0);
-
-		}
-
-		if (iElemL == 446 || iElemR == 446) {
-			int stop = 0;
-		}
-
-		// // Compute face length
-		double delta_l = computeEdgeLength(iFaceGlobal, globalEdge, mesh.nodes);
-
-		// // Find u_hat (the average of the L and R cell averages)
-		vector<double> UL_limiting = U[iElemL];
-
-		vector<double> UR_limiting;
-		UR_limiting.reserve(4);
-		// If no UR exists, need to create a ghost state
-		if (isBoundFace == true) {
-
-			bool isWall = false;
-
-			if (mesh.bounds[iFaceLocal][3] == 1) { // 1 = wall, 0 = farfield (from the .gri group title)
-
-				isWall = true;
-
+			// Update uMin and uMax based on the neighboring element's cell average
+			for (int k = 0; k < 4; k++) {
+				uMin[k] = min(uMin[k], u_i[k]);
+				uMax[k] = max(uMax[k], u_i[k]);
 			}
-			//                else{
-			//                    int stop = 0;
-			//
-			//                }
-
-			UR_limiting = computeBoundaryState(UL_limiting, isWall, Minf, alphaDeg, mesh.Bn, iFaceLocal);
-
-		}
-		else {
-			UR_limiting = U[iElemR];
 		}
 
-		vector<double> Uhat;
-		Uhat.reserve(UL_limiting.size());
+		for (int iNode = 0; iNode < 3; iNode++) {
+			double rx = mesh.r_node_centroid[iElem][2 * iNode];
+			double ry = mesh.r_node_centroid[iElem][2 * iNode + 1];
 
-		// // Add u_hat*n*delta_l to gradient value in vector for L elem and subtract this for the right element (if existing)
-
-		for (int iU = 0; iU < UL_limiting.size(); iU++) {
-			Uhat.emplace_back(0.5 * (UL_limiting[iU] + UR_limiting[iU]));
+			for (int k = 0; k < 4; k++) {
+				double uN_i_k = u0[k] + (rx * grad0[2 * k] + ry * grad0[2 * k + 1]); // Reconstructed value at the node for each state variable
+				double d = uN_i_k - u0[k];
+				
+				// Roundoff floor. Over a patch where every average is bit-identical,
+				// uMax - u0 is exactly 0 while the Green-Gauss sum still leaves a ~1e-16
+				// gradient, so the unguarded ratio sets alpha to 0 on a perfectly smooth
+				// region. The threshold is at the noise level, so a real overshoot -
+				// which is orders of magnitude larger - is still limited exactly as before.
+				double tol = 1e-12 * fabs(u0[k]) + 1e-300;
+				
+				if (d > tol) {
+					alphaElem[k] = min(alphaElem[k], (uMax[k] - u0[k]) / d);
+				}
+				else if (d < -tol) {
+					alphaElem[k] = min(alphaElem[k], (uMin[k] - u0[k]) / d);
+				}
+			}
 		}
 
-		// // Adding u_hat*n*delta_l to elemL and subtracting from elemR
-		for (int iU = 0; iU < UL_limiting.size(); iU++) {
-			Vector2d gradU_add = { n[0] * Uhat[iU] * delta_l,n[1] * Uhat[iU] * delta_l };
+	}
+}
 
-			if (iElemR != -1) { // interior face
-				grad_u[iElemL][iU] += gradU_add;
-			}
-			else { // boundary face, normal points out of element, therefore
-				gradU_add = -gradU_add;
-				grad_u[iElemL][iU] += gradU_add;
-			}
-
-			if (iLocal.isBound == false) { // if right element exists
-				grad_u[iElemR][iU] -= gradU_add;
-			}
-
-		} // end for iU*/
+#endif

@@ -24,7 +24,8 @@ profile_*.cpp         profiling harnesses for the residual and allocations
 
 gri/                  meshes the solver reads
 msh/                  the gmsh sources the .gri files came from
-dat/                  converged solutions written by main
+dat/firstOrder/       converged first-order solutions written by main
+dat/secondOrder/      converged second-order solutions written by main
 fig/                  plots written by scripts/post_process.py
 scripts/              post-processing and mesh plotting (Python)
 docs/                 report
@@ -53,7 +54,7 @@ main.exe
 ```
 
 It prompts for the flux function, CFL, and limiter. Solutions are named
-`dat/<flux>_CFL<cfl>_<order>[_<limiter>].dat`, so a file records the settings
+`dat/<order>/<flux>_CFL<cfl>_<order>[_<limiter>].dat`, so a file records the settings
 that produced it; `data_conversion.h` reads the flux and CFL back out of that
 name when a solution is reloaded.
 

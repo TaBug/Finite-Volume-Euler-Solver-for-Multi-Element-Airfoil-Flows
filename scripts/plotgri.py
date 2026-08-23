@@ -50,7 +50,7 @@ def plotmesh(Mesh, fname):
 
 # -----------------------------------------------------------
 def main():
-    Mesh = readgri('adapt1.gri')
+    Mesh = readgri('gri/adapt1.gri')  # paths are relative to the repo root: python scripts/plotgri.py
     plotmesh(Mesh, []);
 
 

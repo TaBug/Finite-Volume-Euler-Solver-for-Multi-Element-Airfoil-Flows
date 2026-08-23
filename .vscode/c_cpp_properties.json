@@ -3,8 +3,10 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**",
-                "${env:USERPROFILE}/eigen-3.4.0"
+                "${workspaceFolder}",
+                "${workspaceFolder}/gri",
+                "${env:USERPROFILE}/eigen-3.4.0",
+                "C:/Users/david/eigen-3.4.0"
             ],
             "defines": [
                 "_DEBUG",

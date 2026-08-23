@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <numeric>
 #include <cmath>
+#include <algorithm>
 #include <filesystem>
 #include <cstdlib>
 using namespace std;
@@ -36,6 +37,7 @@ struct meshData {
 	// read, so the solver never has to hard-code group numbers
 	vector<vector<double>> bounds; // [boundID][node1, node2, bGroup, isWall]
 	vector<vector<double>> interiorFaces; // [faceID][node1, node2, leftElem, rightElem] - left/right element
+	vector<vector<double>> r_node_centroid; // [elemID][node1_dx, node1_dy, node2_dx, node2_dy, node3_dx, node3_dy] - node coords MINUS the element centroid
 	vector<vector<double>> I2E; // [interiorFaceID][leftElem, leftFaceLocal, rightElem, rightFaceLocal]
 	vector<vector<double>> B2E; // [boundaryFaceID][elem, faceLocal, bGroup]
 	vector<vector<int>> E2F; // [elemID][face1, face2, face3] - global edge indices for each element
@@ -57,6 +59,60 @@ inline string findGriFile(const string &fileName) {
 	}
 
 	return path.string();
+}
+
+// Interactive file pickers over a project subfolder, grouped here next to
+// findGriFile. The listing is sorted so the numbering is stable from run to run:
+// a file added later must not silently change what "2" means, or a result ends up
+// named for different inputs than the ones it came from.
+inline string chooseFileFromFolder(const string &folder, const string &extension, const string &prompt) {
+	// make_preferred so a folder written with '/' still prints with the platform
+	// separator - the chosen path is echoed back to the user
+	filesystem::path dir = (filesystem::current_path() / folder).make_preferred();
+
+	// A missing folder and an empty one are the same problem to the caller, and
+	// missing does not imply a wrong working directory: dat/secondOrder only exists
+	// once the second-order solver has written something into it.
+	vector<string> names;
+	if (filesystem::exists(dir)) {
+		for (auto const &entry : filesystem::directory_iterator(dir)) {
+			if (entry.is_regular_file() && entry.path().extension() == extension) {
+				names.push_back(entry.path().filename().string());
+			}
+		}
+		sort(names.begin(), names.end());
+	}
+
+	if (names.empty()) {
+		cerr << "ERROR: no " << extension << " files in " << dir.string() << "\n"
+		     << "       Nothing has been written there yet, or the program is not"
+		     << " running from the project root.\n";
+		exit(EXIT_FAILURE);
+	}
+
+	cout << prompt << ":\n";
+	for (size_t i = 0; i < names.size(); i++) {
+		cout << i + 1 << " - " << names[i] << "\n";
+	}
+	cout << "Enter Option: ";
+
+	int choice = 0;
+	cin >> choice;
+	if (!cin || choice < 1 || choice > int(names.size())) {
+		cerr << "ERROR: invalid option (expected 1-" << names.size() << ")\n";
+		exit(EXIT_FAILURE);
+	}
+
+	return (dir / names[choice - 1]).string();
+}
+
+// The meshes the solver reads, and the converged solutions it writes.
+inline string chooseGriFile() { return chooseFileFromFolder("gri", ".gri", "Choose Mesh File (.gri)"); }
+// order is the dat subfolder: "firstOrder" or "secondOrder". Keeping the two
+// apart means the first-order restart menu cannot offer a second-order solution,
+// which would then be marched again and saved under the wrong name.
+inline string chooseDatFile(const string &order) {
+	return chooseFileFromFolder("dat/" + order, ".dat", "Choose Solution File (.dat)");
 }
 
 // READ GMSH .BDF OUTPUT FILE INTO NODE, BOUNDARY, AND ELEMENT MATRICES
@@ -242,6 +298,33 @@ vector<vector<double>> genInteriorFaceVec(struct meshData &mesh) {
 	}
 	return interiorFaces;
 }
+
+// Offset from each element's centroid to each of its three nodes. The limiter
+// reconstructs to the nodes as u0 + r.grad, so what it needs is the OFFSET, not
+// the node coordinate: storing the raw coordinate makes the reconstruction depend
+// on where the mesh origin happens to sit and inflates r from O(h) to O(x), which
+// drives every alpha toward zero and silently destroys second-order accuracy.
+vector<vector<double>> genCentroid2NodesVec(struct meshData &mesh) {
+	vector<vector<double>> centroid2Nodes(mesh.nelem, vector<double>(6, 0.0));
+
+	for(int iElem = 0; iElem < mesh.nelem; iElem++) {
+
+		double cx = 0.0, cy = 0.0;
+		for(int iNode = 0; iNode < 3; iNode++) {
+			cx += mesh.nodes[mesh.elem[iElem][iNode]-1][0];
+			cy += mesh.nodes[mesh.elem[iElem][iNode]-1][1];
+		}
+		cx /= 3.0;
+		cy /= 3.0;
+
+		for(int iNode = 0; iNode < 3; iNode++) {
+			centroid2Nodes[iElem][2*iNode] = mesh.nodes[mesh.elem[iElem][iNode]-1][0] - cx; // x-offset, node - centroid
+			centroid2Nodes[iElem][2*iNode + 1] = mesh.nodes[mesh.elem[iElem][iNode]-1][1] - cy; // y-offset, node - centroid
+		}
+	}
+	return centroid2Nodes;
+}
+
 
 vector<vector<double>> genI2E (meshData &mesh) {
 	
@@ -518,6 +601,7 @@ inline vector<double> genArea(meshData &mesh) {
 // the calls matters, since I2E feeds In and B2E feeds Bn.
 inline void buildMeshTopology(meshData &mesh) {
 	mesh.interiorFaces = genInteriorFaceVec(mesh);
+	mesh.r_node_centroid = genCentroid2NodesVec(mesh);
 	mesh.I2E = genI2E(mesh);
 	mesh.B2E = genB2E(mesh);
 	mesh.E2F = genE2F(mesh);

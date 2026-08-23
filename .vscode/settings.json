@@ -1,0 +1,25 @@
+{
+    // The .vs/ and code/.vs/ precompiled-header caches are hundreds of MB and sit
+    // inside a OneDrive-synced folder. Letting IntelliSense walk them stalls the
+    // include resolver, which then reports "cannot open source file" for headers
+    // that resolve perfectly well at compile time (Eigen/Dense in particular).
+    "files.watcherExclude": {
+        "**/.vs/**": true,
+        "**/build/**": true,
+        "**/x64/**": true,
+        "**/__pycache__/**": true
+    },
+    "search.exclude": {
+        "**/.vs": true,
+        "**/build": true,
+        "**/x64": true,
+        "**/__pycache__": true
+    },
+    "C_Cpp.files.exclude": {
+        "**/.vs": true,
+        "**/build": true,
+        "**/x64": true,
+        "**/archive": true,
+        "**/__pycache__": true
+    }
+}

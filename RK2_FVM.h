@@ -1,10 +1,3 @@
-//
-//  RK2_FVM.h
-//  p2-AEROSP-623
-//
-//  Created by Jake Yeaman on 2/17/23.
-//
-
 #ifndef RK2_FVM_h
 #define RK2_FVM_h
 

@@ -6,6 +6,7 @@
 #include "FE_FVM.h"
 #include "RK2_FVM.h"
 #include "data_conversion.h"
+
 using namespace std;
 
 int main() {
@@ -15,8 +16,8 @@ int main() {
     double alphaDeg = 8.0; // angle of attack in degrees
     vector<double> uinf = computeFreestreamState(Minf, alphaDeg); // freestream state vector [rho, rho*u, rho*v, rho*E]
  
-    // find the .gri file in the working directory
-    string fileNameGri = findGriFile("smoothed_local_all.gri");
+    // let the user pick one of the meshes in the gri folder
+    string fileNameGri = chooseGriFile();
     cout << "Mesh File (.gri): " << fileNameGri << "\n";
     
     // read the .gri file and construct the mesh data structure
@@ -33,13 +34,19 @@ int main() {
     double CFL;  // likewise, and reused by rk2 below
     const char* fluxName[] = { "", "roe", "rusanov", "hlle" }; // opt is 1-3, validated below
 
-    // name the files after the flux and CFL so the results are self-describing,
-    // and so a reloaded solution can be traced back to the settings that made it.
+    // name the files after the flux, CFL and - for the second-order runs - the
+    // limiter, so the results are self-describing and a reloaded solution can be
+    // traced back to the settings that made it. The tag goes on the END:
+    // filename2settings reads the flux off the front and the CFL after "CFL", so
+    // appending to the stem leaves both parses intact.
     // to_string(CFL) is avoided: it always emits 6 decimals, giving "CFL0.700000"
-    auto solutionFile = [&](const string &order) {
+    auto solutionFile = [&](const string &order, const string &tag = "") {
         ostringstream cflStr;
         cflStr << setprecision(3) << CFL;
-        return "dat/" + string(fluxName[opt]) + "_CFL" + cflStr.str() + "_" + order + ".dat";
+        // first- and second-order solutions go to their own subfolders; openForWrite
+        // creates the folder, so neither has to exist beforehand
+        return "dat/" + order + "/" + string(fluxName[opt]) + "_CFL" + cflStr.str()
+               + "_" + order + (tag.empty() ? "" : "_" + tag) + ".dat";
     };
 
     // initialize the state to free-stream condition
@@ -52,11 +59,20 @@ int main() {
         state2text(u, filename); // save the converged solution to a file
         cout << "First-order solution saved to '" << filename << "'\n";
     } else { // already run
-        // read the converged solution from the file to use as an initial condition for RK2
-        cout << "Enter the filename of the converged first-order solution: ";
-        string filename;
-        cin >> filename;
+        // pick the converged solution to use as an initial condition for RK2
+        string filename = chooseDatFile("firstOrder");
+        cout << "Solution File (.dat): " << filename << "\n";
         u = text2state(filename);
+
+        // A solution written on a different mesh loads without complaint but leaves
+        // every later loop indexing past the end of u. Easy to hit now that the mesh
+        // and the solution are picked from two independent menus, so check the shape.
+        if (int(u.size()) != mesh.nelem) {
+            cerr << "ERROR: '" << filename << "' holds " << u.size()
+                 << " elements but the mesh has " << mesh.nelem << "\n"
+                 << "       The solution was written on a different mesh.\n";
+            exit(EXIT_FAILURE);
+        }
 
         // opt and CFL are set by FVM1st in the branch above, so this branch has to
         // supply them itself - rk2 uses both, and reading them uninitialized is UB.
@@ -79,6 +95,8 @@ int main() {
 
     vector<vector<double>> u_firstOrder = u; // store the converged solution from first-order FVM to use as initial condition for RK2
 
+    // Plot the first-order solution
+
     cout << "Would you like to proceed with the second-order solver? (y/n): ";
     char proceed;
     cin >> proceed;
@@ -98,16 +116,33 @@ int main() {
     // solver above still uses the nested layout, so convert at the seam.
     vector<double> uFlat = flattenState(u_firstOrder);
 
-    // "NONE" for now: the BJ and LCD limiters are implemented in solver.h but are
-    // not yet called from the residual, which rejects any other value rather than
-    // quietly running unlimited.
-    rk2(mesh, geom, opt, uFlat, "NONE", 1e-5, CFL);
+    // Choose the limiter type.
+    string limiterType = "NONE";
+    cout << "Choose Limiter Type:\n" << "1 - None\n" << "2 - Barth-Jespersen\n" << "Enter Option: ";
+    int limiterOption;
+    cin >> limiterOption;
+    switch (limiterOption) {
+        case 1:
+            limiterType = "NONE";
+            break;
+        case 2:
+            limiterType = "BJ";
+            break;
+        default:
+            cerr << "ERROR: invalid limiter option " << limiterOption << "\n";
+            exit(EXIT_FAILURE);
+    }
+
+    // Run the second-order solver with the converged first-order solution as the initial condition.
+    rk2(mesh, geom, opt, uFlat, limiterType, 1e-5, CFL);
     cout << "Second-order Runge-Kutta finite volume method has converged!\n";
 
     // rk2 updates uFlat in place and writes nothing itself, so the save
     // happens here - the message below used to announce a file that never existed
-    string outFilename = solutionFile("secondOrder");
+    string outFilename = solutionFile("secondOrder", limiterType);
     state2text(uFlat, outFilename);
     cout << "Solution saved to '" << outFilename << "'\n";
+
+    
     return 0;
 }

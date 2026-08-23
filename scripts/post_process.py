@@ -4,13 +4,40 @@ from pathlib import Path
 from readgri import readgri
 
 
+LIMITER_NAMES = ('NONE', 'BJ')  # must match the limiterType strings main.cpp writes
+
+
+def limiterTag(datFile):
+    """Limiter suffix to put in a figure name, or None for a first-order result.
+
+    main.cpp names second-order solutions
+    dat/secondOrder/<flux>_CFL<cfl>_secondOrder_<limiter>.dat, so the limiter is
+    normally already the last field of the stem and is returned
+    as-is. Files written before that suffix existed are still second-order but
+    record nothing about the limiter, and their plots would otherwise be
+    indistinguishable from a tagged run - those are marked "limUnknown".
+    """
+    stem = Path(datFile).stem
+    if 'secondOrder' not in stem and '2ndOrder' not in stem:
+        return None
+    tail = stem.rsplit('_', 1)[-1]
+    return tail if tail in LIMITER_NAMES else 'limUnknown'
+
+
 def figPath(datFile, meshFile, kind):
     """fig/<dat stem>__<mesh stem>_<kind>.png, creating the folder if needed.
 
     Naming the figure after both inputs means a plot always says which solution
-    and which mesh produced it, so runs cannot be mixed up later.
+    and which mesh produced it, so runs cannot be mixed up later. For a
+    second-order solution that also means the limiter: it is appended only when
+    the stem does not already end with it, so a properly named file does not come
+    out as "..._BJ_BJ".
     """
-    name = f"{Path(datFile).stem}__{Path(meshFile).stem}_{kind}.png"
+    stem = Path(datFile).stem
+    tag = limiterTag(datFile)
+    if tag is not None and not stem.endswith(f"_{tag}"):
+        stem = f"{stem}_{tag}"
+    name = f"{stem}__{Path(meshFile).stem}_{kind}.png"
     out = Path('fig') / name
     out.parent.mkdir(parents=True, exist_ok=True)
     return out
@@ -153,7 +180,7 @@ def plotCp(x, cp, savePath=None):
 
 
 def main():
-    datFile = 'dat/rusanov_CFL0.9_firstOrder.dat' # converged solution from first-order FVM
+    datFile = 'dat/secondOrder/rusanov_CFL0.9_secondOrder_NONE.dat' # trailing field is the limiter
     mesh = 'gri/smoothed_local_all.gri' # mesh file
     u = np.loadtxt(datFile)
     Minf = 0.25 # freestream Mach number - must match main.cpp

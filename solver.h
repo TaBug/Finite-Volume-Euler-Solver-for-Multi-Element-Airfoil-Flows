@@ -313,7 +313,7 @@ vector<Vector2d> compute_rN(vector<vector<double>> const& nodes, vector<vector<d
 
 }
 
-vector<Vector2d> barthJespersen(vector<vector<double>> const& nodes, vector<vector<double>> const& elem, vector<double> const& area, vector<vector<double>> const& U, int iCell, vector<int> const iNeighbor, double Minf, double alphaDeg, vector<vector<double>> const& Bn, vector<vector<int>> const& elemBounds, vector<vector<double>> const& bounds, vector<vector<double>> const& interiorFaces, vector<int> const iFaces) {
+vector<Vector2d> limiterBarthJespersen(vector<vector<double>> const& nodes, vector<vector<double>> const& elem, vector<double> const& area, vector<vector<double>> const& U, int iCell, vector<int> const iNeighbor, double Minf, double alphaDeg, vector<vector<double>> const& Bn, vector<vector<int>> const& elemBounds, vector<vector<double>> const& bounds, vector<vector<double>> const& interiorFaces, vector<int> const iFaces) {
 	// vector<vector<double>> uALL(4, vector<double>(4,0.0)); // EACH ROW REPRESENTS A SPECIFIC STATE VARIABLE (E.G DENSTIY)
 	vector<vector<double>> uALL(4, vector<double>(1 + iNeighbor.size(), 0.0));
 
@@ -676,11 +676,19 @@ inline meshGeom buildMeshGeom(meshData const& mesh, double Minf, double alphaDeg
 // for the whole solve rather than twice per time step.
 struct fvWorkspace {
 	vector<double> grad;   // [nelem][4][x,y], flattened - stride 8 per element
-	explicit fvWorkspace(int nelem) : grad(size_t(nelem) * 8, 0.0) {}
+	vector<double> alpha;  // [nelem][4], flattened - one limiter value per state variable
+	explicit fvWorkspace(int nelem)
+		: grad(size_t(nelem) * 8, 0.0), alpha(size_t(nelem) * 4, 1.0) {}
 };
+
+// Included here rather than at the top of the file: the limiters take an
+// fvWorkspace, so the struct above has to be complete first.
+#include "limiters.h"
 
 // Flat-array counterpart of computeBoundaryState: same wall projection and same
 // farfield state, writing four doubles instead of returning a vector.
+// if iswall is true, the normal velocity is projected out of the left state; if false, the
+// farfield state is copied into the ghost state. The normal is assumed to be a unit vector.
 inline void boundaryStateFlat(const double* U_cell, bool isWall, const double* uinf,
 							  double nx, double ny, double* Ub) {
 	if (!isWall) { // farfield
@@ -701,11 +709,11 @@ inline void boundaryStateFlat(const double* U_cell, bool isWall, const double* u
 // is folded into the face loop instead of costing a call per face.
 template <double (*FluxCore)(const double*, const double*, double, double, double, double*)>
 static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
-									fvWorkspace& ws, const double* u, double* R) {
+									fvWorkspace& ws, const double* u, double* R, string const& limiterType) {
 	const int nelem = mesh.nelem;
 	double* grad = ws.grad.data();
-	fill(ws.grad.begin(), ws.grad.end(), 0.0);
-	fill(R, R + size_t(nelem) * 5, 0.0);
+	fill(ws.grad.begin(), ws.grad.end(), 0.0); // clear the gradient workspace
+	fill(R, R + size_t(nelem) * 5, 0.0); // clear the residual workspace
 
 	// Pass 1: grad(u)_i = (1/A_i) * sum over faces of uhat * n_out * dl
 	for (size_t i = 0; i < g.faces.size(); i++) {
@@ -745,20 +753,32 @@ static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
 		for (int k = 0; k < 8; k++) ge[k] /= A;
 	}
 
+	// One limiter value per state variable per element. computeBarthJespersenLimiter
+	// writes every entry itself, so alpha only needs resetting when no limiter runs
+	// and the reconstruction below must stay unlimited.
+	double* alpha = ws.alpha.data();
+	if (limiterType == "BJ") {
+		computeBarthJespersenLimiter(alpha, mesh, u, ws);
+	} else {
+		fill(ws.alpha.begin(), ws.alpha.end(), 1.0);
+	}
+
 	// Pass 2: reconstruct to each face midpoint and accumulate the flux residual
 	for (size_t i = 0; i < g.faces.size(); i++) {
 		faceCache const& f = g.faces[i];
 		const double* gL = grad + size_t(f.iElemL) * 8;
 		const double* cL = u + size_t(f.iElemL) * 4;
+		const double* alphaL = alpha + size_t(f.iElemL) * 4;
 		double uLr[4], uRr[4];
 		for (int k = 0; k < 4; k++)
-			uLr[k] = cL[k] + gL[k * 2] * f.dxL + gL[k * 2 + 1] * f.dyL;
+			uLr[k] = cL[k] + alphaL[k] * (gL[k * 2] * f.dxL + gL[k * 2 + 1] * f.dyL); // reconstructed left state at the face midpoint
 
 		if (f.iElemR >= 0) {
 			const double* gR = grad + size_t(f.iElemR) * 8;
 			const double* cR = u + size_t(f.iElemR) * 4;
+			const double* alphaR = alpha + size_t(f.iElemR) * 4;
 			for (int k = 0; k < 4; k++)
-				uRr[k] = cR[k] + gR[k * 2] * f.dxR + gR[k * 2 + 1] * f.dyR;
+				uRr[k] = cR[k] + alphaR[k] * (gR[k * 2] * f.dxR + gR[k * 2 + 1] * f.dyR);
 		} else {
 			// Built from the already-reconstructed uLr, so the wall tangency holds
 			// at the point the flux actually sees.
@@ -783,16 +803,15 @@ static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
 // R must have room for nelem*5 doubles, u must hold nelem*4.
 inline void secondOrderResidual(meshData const& mesh, meshGeom const& g, fvWorkspace& ws,
 								int opt, const double* u, double* R, string const& limiterType) {
-	if (limiterType != "NONE") {
-		cerr << "ERROR: limiterType \"" << limiterType << "\" is not implemented yet.\n"
-			 << "       Only \"NONE\" (unlimited reconstruction) is available; the BJ and LCD\n"
-			 << "       limiters exist as functions but are not called from this driver.\n";
+	if (limiterType != "NONE" && limiterType != "BJ") {
+		cerr << "ERROR: limiterType \"" << limiterType << "\" is not implemented.\n"
+			 << "       Available: \"NONE\" (unlimited) and \"BJ\" (Barth-Jespersen).\n";
 		exit(EXIT_FAILURE);
 	}
 	switch (opt) {
-		case FLUX_ROE:     secondOrderResidualImpl<roeCore>(mesh, g, ws, u, R);     return;
-		case FLUX_RUSANOV: secondOrderResidualImpl<rusanovCore>(mesh, g, ws, u, R); return;
-		case FLUX_HLLE:    secondOrderResidualImpl<hlleCore>(mesh, g, ws, u, R);    return;
+		case FLUX_ROE:     secondOrderResidualImpl<roeCore>(mesh, g, ws, u, R, limiterType);     return;
+		case FLUX_RUSANOV: secondOrderResidualImpl<rusanovCore>(mesh, g, ws, u, R, limiterType); return;
+		case FLUX_HLLE:    secondOrderResidualImpl<hlleCore>(mesh, g, ws, u, R, limiterType);    return;
 	}
 	cerr << "ERROR: unknown flux option " << opt << " (expected 1 = Roe, 2 = Rusanov, 3 = HLLE)\n";
 	exit(EXIT_FAILURE);

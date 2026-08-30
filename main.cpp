@@ -34,11 +34,21 @@ int main() {
     double CFL;  // likewise, and reused by rk2 below
     const char* fluxName[] = { "", "roe", "rusanov", "hlle" }; // opt is 1-3, validated below
 
-    // name the files after the flux, CFL and - for the second-order runs - the
-    // limiter, so the results are self-describing and a reloaded solution can be
-    // traced back to the settings that made it. The tag goes on the END:
-    // filename2settings reads the flux off the front and the CFL after "CFL", so
-    // appending to the stem leaves both parses intact.
+    // The mesh is part of what identifies a run: the same flux and CFL on a
+    // different mesh is a different solution, and a state file is only meaningful
+    // on the mesh it was written for - hence the element-count check on reload
+    // below. stem() drops the "gri/" and the ".gri".
+    const string meshName = filesystem::path(fileNameGri).stem().string();
+
+    // name the files after the flux, CFL, mesh and - for the second-order runs -
+    // the limiter, so the results are self-describing and a reloaded solution can
+    // be traced back to the settings that made it.
+    // Field order is load-bearing at both ends. filename2settings reads the flux
+    // off the front and the CFL after "CFL", so everything after those is free;
+    // post_process.py reads the limiter off the LAST underscore-separated field,
+    // so the mesh goes BEFORE the tag rather than after it. Mesh names may
+    // themselves contain underscores ("smoothed_local_all") - that is fine,
+    // since neither parse counts fields from the middle.
     // to_string(CFL) is avoided: it always emits 6 decimals, giving "CFL0.700000"
     auto solutionFile = [&](const string &order, const string &tag = "") {
         ostringstream cflStr;
@@ -46,7 +56,7 @@ int main() {
         // first- and second-order solutions go to their own subfolders; openForWrite
         // creates the folder, so neither has to exist beforehand
         return "dat/" + order + "/" + string(fluxName[opt]) + "_CFL" + cflStr.str()
-               + "_" + order + (tag.empty() ? "" : "_" + tag) + ".dat";
+               + "_" + order + "_" + meshName + (tag.empty() ? "" : "_" + tag) + ".dat";
     };
 
     // initialize the state to free-stream condition
@@ -136,8 +146,13 @@ int main() {
             exit(EXIT_FAILURE);
     }
 
+    // User input for maximum time iterations
+    int maxIter;
+    cout << "Enter Max. Time Iterations: ";
+    cin >> maxIter;
+
     // Run the second-order solver with the converged first-order solution as the initial condition.
-    rk2(mesh, geom, opt, uFlat, limiterType, 1e-5, CFL);
+    rk2(mesh, geom, opt, uFlat, limiterType, 1e-5, CFL, maxIter);
     cout << "Second-order Runge-Kutta finite volume method has converged!\n";
 
     // rk2 updates uFlat in place and writes nothing itself, so the save

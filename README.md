@@ -54,9 +54,10 @@ main.exe
 ```
 
 It prompts for the flux function, CFL, and limiter. Solutions are named
-`dat/<order>/<flux>_CFL<cfl>_<order>[_<limiter>].dat`, so a file records the settings
-that produced it; `data_conversion.h` reads the flux and CFL back out of that
-name when a solution is reloaded.
+`dat/<order>/<flux>_CFL<cfl>_<order>_<mesh>[_<limiter>].dat`, so a file records the
+settings that produced it; `data_conversion.h` reads the flux and CFL back out of
+that name when a solution is reloaded. The limiter stays last because
+`scripts/post_process.py` reads it off the final field, so the mesh sits before it.
 
 ## Post-processing
 
@@ -64,8 +65,21 @@ name when a solution is reloaded.
 python scripts/post_process.py       # cp plot, Mach contours, cl and cd
 ```
 
-Figures land in `fig/`, named after both the solution and the mesh. Edit
-`datFile` and `mesh` at the bottom of the script to choose a run.
+It lists the solutions in `dat/` and asks which one to plot, then asks for the
+freestream Mach number and angle of attack, which no file records. The mesh is
+read out of the solution's own name, so it only asks when that fails - a file
+written before the mesh was part of the name.
+
+Every answer can be given up front instead, which is also how to run it
+unattended:
+
+```
+python scripts/post_process.py --dat dat/secondOrder/rusanov_CFL0.9_secondOrder_c0_BJ.dat \
+                               --minf 0.25 --alpha 8 --no-show
+```
+
+`--mesh` overrides the mesh read from the name. Figures land in `fig/`, named
+after the solution and the mesh.
 
 ## Checks
 

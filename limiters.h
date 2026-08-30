@@ -289,29 +289,31 @@ inline void computeLCDLimiter(double* alpha, meshData const& mesh, const double*
 			gradElem[2 * k + 1] = gy;
 		}
 
-		for (int iFaceLocal = 0; iFaceLocal < 3; iFaceLocal++) {
-			int iFaceGlobal = mesh.E2F[iElem][iFaceLocal]; // Get the global face index for the current local face
-			faceCache const& f = g.faces[iFaceGlobal];
+		// for (int iFaceLocal = 0; iFaceLocal < 3; iFaceLocal++) {
+		// 	int iFaceGlobal = mesh.E2F[iElem][iFaceLocal]; // Get the global face index for the current local face
+		// 	faceCache const& f = g.faces[iFaceGlobal];
 
-			// dxL/dyL is the face midpoint measured from the LEFT element's
-			// centroid; this element is the right one on roughly half its faces,
-			// so pick the offset that is actually rooted at iElem.
-			bool isLeft = (f.iElemL == iElem);
-			double dx = isLeft ? f.dxL : f.dxR;
-			double dy = isLeft ? f.dyL : f.dyR;
+		// 	// dxL/dyL is the face midpoint measured from the LEFT element's
+		// 	// centroid; this element is the right one on roughly half its faces,
+		// 	// so pick the offset that is actually rooted at iElem.
+		// 	bool isLeft = (f.iElemL == iElem);
+		// 	double dx = isLeft ? f.dxL : f.dxR;
+		// 	double dy = isLeft ? f.dyL : f.dyR;
 
-			for (int k = 0; k < 4; k++) {
-				double rL_k = dx * gradElem[2 * k] + dy * gradElem[2 * k + 1];
+		// 	for (int k = 0; k < 4; k++) {
+		// 		double rL_k = dx * gradElem[2 * k] + dy * gradElem[2 * k + 1];
 
-				if (rL_k > uMaxFace[iFaceLocal][k]) {
-					alphaElem[k] = min(alphaElem[k], (uMaxFace[iFaceLocal][k]) / rL_k);
-				}
-				else if (rL_k < uMinFace[iFaceLocal][k]) {
-					alphaElem[k] = min(alphaElem[k], (uMinFace[iFaceLocal][k]) / rL_k);
-				}
-	
-			}
-		}
+		// 		if (rL_k > uMaxFace[iFaceLocal][k]) {
+		// 			alphaElem[k] = min(alphaElem[k], (uMaxFace[iFaceLocal][k]) / rL_k);
+		// 		}
+		// 		else if (rL_k < uMinFace[iFaceLocal][k]) {
+		// 			alphaElem[k] = min(alphaElem[k], (uMinFace[iFaceLocal][k]) / rL_k);
+		// 		}
+		// 		else {
+		// 			alphaElem[k] = 1.0; // No limiting needed for this face and state variable
+		// 		}
+		// 	}
+		// }
 
 	}
 }

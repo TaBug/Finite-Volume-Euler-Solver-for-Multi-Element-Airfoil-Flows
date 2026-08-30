@@ -38,7 +38,12 @@ def figPath(datFile, meshFile, kind):
     tag = limiterTag(datFile)
     if tag is not None and not stem.endswith(f"_{tag}"):
         stem = f"{stem}_{tag}"
-    name = f"{stem}__{Path(meshFile).stem}_{kind}.png"
+    # main.cpp puts the mesh in the solution name too, so appending it again
+    # would read "..._smoothed_local_all_LCD__smoothed_local_all_cp.png". Older
+    # files written before that still need it, hence the check rather than a
+    # plain removal.
+    meshStem = Path(meshFile).stem
+    name = f"{stem}_{kind}.png" if meshStem in stem else f"{stem}__{meshStem}_{kind}.png"
     out = Path('fig') / name
     out.parent.mkdir(parents=True, exist_ok=True)
     return out
@@ -220,6 +225,42 @@ def chooseFile(folder, extension, prompt, recursive=False):
         print(f"  Please enter a number from 1 to {len(names)}.")
 
 
+def meshFromDat(datFile, folder='gri'):
+    """Work out which mesh a solution was computed on, from its filename.
+
+    main.cpp names solutions <flux>_CFL<cfl>_<order>_<mesh>[_<limiter>], so the
+    mesh is everything between the order field and the optional limiter. Mesh
+    names contain underscores themselves ("smoothed_local_all"), so the known
+    fields are peeled off the two ends rather than counted from the front.
+
+    Returns None when the name predates that scheme, or names a mesh that is not
+    in the folder - the caller then falls back to asking, which is the right
+    answer rather than guessing wrong. Plotting a solution against the wrong mesh
+    produces a figure that looks plausible and is meaningless.
+    """
+    root = Path(folder)
+    stem = Path(datFile).stem
+    fields = stem.split('_')
+
+    if len(fields) > 3 and fields[1].lower().startswith('cfl'):
+        middle = fields[3:]                      # everything past <flux>_CFL<cfl>_<order>
+        if middle and middle[-1] in LIMITER_NAMES:
+            middle = middle[:-1]
+        if middle:
+            guess = root / ('_'.join(middle) + '.gri')
+            if guess.is_file():
+                return guess.as_posix()
+
+    # Older names put no mesh in the stem, and hand-renamed files may not follow
+    # the field layout at all, so fall back to any mesh whose name appears as a
+    # whole field. Longest first, so a short name cannot win over a longer one
+    # that contains it.
+    for path in sorted(root.glob('*.gri'), key=lambda p: len(p.stem), reverse=True):
+        if f"_{path.stem}_" in f"_{stem}_":
+            return path.as_posix()
+    return None
+
+
 def promptFloat(prompt, default):
     """Read a number, taking a blank line as the default.
 
@@ -245,7 +286,9 @@ def main():
         description="Plot cp and Mach contours for a solution, and report cl and cd."
     )
     parser.add_argument('--dat', help='solution file to plot (default: pick from a list)')
-    parser.add_argument('--mesh', help='mesh the solution was computed on (default: pick from a list)')
+    parser.add_argument('--mesh',
+                        help='mesh the solution was computed on'
+                             ' (default: read from the solution name, else pick from a list)')
     parser.add_argument('--minf', type=float, help='freestream Mach number (default: ask)')
     parser.add_argument('--alpha', type=float, help='angle of attack in degrees (default: ask)')
     parser.add_argument('--no-show', action='store_true',
@@ -255,12 +298,21 @@ def main():
     # Anything not given on the command line is asked for, so one script serves
     # both a quick interactive look and a scripted batch of runs.
     datFile = args.dat or chooseFile('dat', '.dat', 'Choose Solution File (.dat)', recursive=True)
-    mesh = args.mesh or chooseFile('gri', '.gri', 'Choose Mesh File (.gri)')
+
+    # The solution name records its own mesh, so the usual case needs no answer
+    # here. Where it cannot be read - a file predating that naming - fall back to
+    # asking rather than picking something that would plot without complaint.
+    mesh = args.mesh or meshFromDat(datFile)
+    meshSource = 'from solution name' if (mesh and not args.mesh) else None
+    if mesh is None:
+        print("Could not tell which mesh " + Path(datFile).name + " was computed on.")
+        mesh = chooseFile('gri', '.gri', 'Choose Mesh File (.gri)')
+
     Minf = args.minf if args.minf is not None else promptFloat('Freestream Mach number', 0.25)
     alpha = args.alpha if args.alpha is not None else promptFloat('Angle of attack (degrees)', 8.0)
 
     print(f"solution: {datFile}")
-    print(f"mesh:     {mesh}")
+    print(f"mesh:     {mesh}" + (f"  ({meshSource})" if meshSource else ""))
     print(f"Minf = {Minf}, alpha = {alpha} deg")
 
     u = np.loadtxt(datFile)

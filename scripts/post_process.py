@@ -1,10 +1,11 @@
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from readgri import readgri
 
 
-LIMITER_NAMES = ('NONE', 'BJ')  # must match the limiterType strings main.cpp writes
+LIMITER_NAMES = ('NONE', 'BJ', 'LCD')  # must match the limiterType strings main.cpp writes
 
 
 def limiterTag(datFile):
@@ -52,7 +53,7 @@ def savePlot(f, savePath):
     print(f"saved {savePath}")
 
 
-def plotMach(U, mesh, savePath=None):
+def plotMach(U, mesh, savePath=None, show=True):
     grid = readgri(mesh)  # read once; readgri rebuilds a sparse edge hash per call
     elem = grid['E']
     nodes = grid['V']
@@ -78,7 +79,8 @@ def plotMach(U, mesh, savePath=None):
     plt.xlim([-0.3, 1.3])
     plt.ylim([-0.4, 0.4])
     savePlot(f, savePath)
-    plt.show()
+    if show:
+        plt.show()
     plt.close(f)
 
 
@@ -165,7 +167,7 @@ def computeFreestreamState(Minf, alpha):
     return uInf
 
 
-def plotCp(x, cp, savePath=None):
+def plotCp(x, cp, savePath=None, show=True):
     # cp plot
     f = plt.figure(figsize=(8, 8))
     plt.xlabel('x (m)', fontsize=16)
@@ -175,23 +177,102 @@ def plotCp(x, cp, savePath=None):
     f.tight_layout()
     plt.legend()
     savePlot(f, savePath)
-    plt.show()
+    if show:
+        plt.show()
     plt.close(f)
 
 
+NO_INPUT = ("ERROR: no input available. Pass --dat, --mesh, --minf and --alpha"
+            " to run without prompts.")
+
+
+def chooseFile(folder, extension, prompt, recursive=False):
+    """Numbered menu over the files in a folder, returning the one picked.
+
+    Mirrors chooseFileFromFolder in processMesh.h so this reads the same way as
+    the solver: identical sorted listing, identical 1-based numbering. Paths are
+    relative to the working directory, so this - like the solver - expects to be
+    run from the repository root.
+    """
+    root = Path(folder)
+    pattern = '*' + extension
+    # dat/ splits into firstOrder/ and secondOrder/, so solutions need a
+    # recursive walk while the flat gri/ folder does not.
+    names = sorted(root.rglob(pattern) if recursive else root.glob(pattern))
+    if not names:
+        raise SystemExit(
+            f"ERROR: no {extension} files in {root}\n"
+            "       Nothing has been written there yet, or you are not running"
+            " from the project root."
+        )
+
+    print(f"{prompt}:")
+    for i, name in enumerate(names, 1):
+        print(f"  {i} - {name.as_posix()}")
+
+    while True:
+        try:
+            answer = input("Enter Option: ").strip()
+        except EOFError:
+            raise SystemExit(NO_INPUT)
+        if answer.isdigit() and 1 <= int(answer) <= len(names):
+            return names[int(answer) - 1].as_posix()
+        print(f"  Please enter a number from 1 to {len(names)}.")
+
+
+def promptFloat(prompt, default):
+    """Read a number, taking a blank line as the default.
+
+    Minf and the angle of attack are not recorded anywhere in a solution file -
+    only the flux and CFL are, through the filename - so they have to come from
+    the user. The defaults are the subsonic condition from the project statement.
+    """
+    while True:
+        try:
+            answer = input(f"{prompt} [{default}]: ").strip()
+        except EOFError:
+            raise SystemExit(NO_INPUT)
+        if not answer:
+            return default
+        try:
+            return float(answer)
+        except ValueError:
+            print("  Not a number.")
+
+
 def main():
-    datFile = 'dat/secondOrder/rusanov_CFL0.9_secondOrder_NONE.dat' # trailing field is the limiter
-    mesh = 'gri/smoothed_local_all.gri' # mesh file
+    parser = argparse.ArgumentParser(
+        description="Plot cp and Mach contours for a solution, and report cl and cd."
+    )
+    parser.add_argument('--dat', help='solution file to plot (default: pick from a list)')
+    parser.add_argument('--mesh', help='mesh the solution was computed on (default: pick from a list)')
+    parser.add_argument('--minf', type=float, help='freestream Mach number (default: ask)')
+    parser.add_argument('--alpha', type=float, help='angle of attack in degrees (default: ask)')
+    parser.add_argument('--no-show', action='store_true',
+                        help='write the figures without opening a window')
+    args = parser.parse_args()
+
+    # Anything not given on the command line is asked for, so one script serves
+    # both a quick interactive look and a scripted batch of runs.
+    datFile = args.dat or chooseFile('dat', '.dat', 'Choose Solution File (.dat)', recursive=True)
+    mesh = args.mesh or chooseFile('gri', '.gri', 'Choose Mesh File (.gri)')
+    Minf = args.minf if args.minf is not None else promptFloat('Freestream Mach number', 0.25)
+    alpha = args.alpha if args.alpha is not None else promptFloat('Angle of attack (degrees)', 8.0)
+
+    print(f"solution: {datFile}")
+    print(f"mesh:     {mesh}")
+    print(f"Minf = {Minf}, alpha = {alpha} deg")
+
     u = np.loadtxt(datFile)
-    Minf = 0.25 # freestream Mach number - must match main.cpp
-    alpha = 8 # angle of attack in degrees
     uInf = computeFreestreamState(Minf, alpha)
 
     cd, cl, x, cp = getCoefficients(u, uInf, mesh, alpha)
     print(f"cd = {cd}, cl = {cl}")
-    plotCp(x, cp, figPath(datFile, mesh, 'cp'))
-    plotMach(u, mesh, figPath(datFile, mesh, 'mach'))
+    plotCp(x, cp, figPath(datFile, mesh, 'cp'), show=not args.no_show)
+    plotMach(u, mesh, figPath(datFile, mesh, 'mach'), show=not args.no_show)
 
 
 if __name__ == "__main__":
     main()
+
+

@@ -1,21 +1,15 @@
-#ifndef solver_h
-#define solver_h
+#ifndef SOLVER_H
+#define SOLVER_H
 
 #include <iostream>
-#include <iomanip>
-#include <fstream>
 #include <string>
-#include <sstream>
 #include <vector>
-#include <unordered_set>
-#include <numeric>
+#include <algorithm>
 #include <cmath>
 #include <cfloat>
-#include <algorithm>
-#include <Eigen/Sparse>
+#include <Eigen/Dense>
 #include "processMesh.h"
 #include "fluxes.h"
-
 using namespace std;
 using namespace Eigen;
 
@@ -312,223 +306,8 @@ vector<Vector2d> compute_rN(vector<vector<double>> const& nodes, vector<vector<d
 
 }
 
-vector<Vector2d> limiterBarthJespersen(vector<vector<double>> const& nodes, vector<vector<double>> const& elem, vector<double> const& area, vector<vector<double>> const& U, int iCell, vector<int> const iNeighbor, double Minf, double alphaDeg, vector<vector<double>> const& Bn, vector<vector<int>> const& elemBounds, vector<vector<double>> const& bounds, vector<vector<double>> const& interiorFaces, vector<int> const iFaces) {
-	// vector<vector<double>> uALL(4, vector<double>(4,0.0)); // EACH ROW REPRESENTS A SPECIFIC STATE VARIABLE (E.G DENSTIY)
-	vector<vector<double>> uALL(4, vector<double>(1 + iNeighbor.size(), 0.0));
-
-	// Populating uALL for iCell
-	uALL[0][0] = U[iCell][0];
-	uALL[1][0] = U[iCell][1];
-	uALL[2][0] = U[iCell][2];
-	uALL[3][0] = U[iCell][3];
-
-	// Populating uALL for neighbors
-	for (int i = 0; i < iNeighbor.size(); i++) {
-
-		if (iNeighbor[i] < 0) { // Boundary
-			if (iNeighbor[i] == -1) { // freestream
-				vector<double> uFS = computeFreestreamState(Minf, alphaDeg);
-				uALL[0][i + 1] = uFS[0];
-				uALL[1][i + 1] = uFS[1];
-				uALL[2][i + 1] = uFS[2];
-				uALL[3][i + 1] = uFS[3];
-			}
-			else { // wall
-				int iFaceGlobal = elemBounds[iCell][iFaces[i] - 1];
-				iGlobal2Local iFaceInfo = iG2L(iFaceGlobal, bounds, interiorFaces);
-				int iFaceLocal = iFaceInfo.index;
-				vector<double> uWall = computeBoundaryState(U[iCell], true, Minf, alphaDeg, Bn, iFaceLocal);
-				uALL[0][i + 1] = uWall[0];
-				uALL[1][i + 1] = uWall[1];
-				uALL[2][i + 1] = uWall[2];
-				uALL[3][i + 1] = uWall[3];
-			}
-		}
-		else {
-			uALL[0][i + 1] = U[iNeighbor[i]][0];
-			uALL[1][i + 1] = U[iNeighbor[i]][1];
-			uALL[2][i + 1] = U[iNeighbor[i]][2];
-			uALL[3][i + 1] = U[iNeighbor[i]][3];
-		}
-	}
-
-	vector<double> uMAX(4, 0.0);
-	vector<double> uMIN(4, 0.0);
-
-	// Iterate through each state variable
-	for (int i = 0; i < 4; i++) {
-		uMAX[i] = *(max_element(uALL[i].begin(), uALL[i].end()));
-		uMIN[i] = *(min_element(uALL[i].begin(), uALL[i].end()));
-	}
-
-
-	// Find cell0 state
-	vector<double> u0 = U[iCell];
-
-
-	// Obtain all rNs
-	vector<Vector2d> rN = compute_rN(nodes, elem, iCell);
-
-	//out rN
-	// cout << "rN" << endl;
-	// for (int i = 0; i < rN.size(); i++) {
-	// // Loop through each element in the inner vector
-	// for (int j = 0; j < rN[i].size(); j++) {
-	//     cout << rN[i][j] << " ";
-	// }
-	// cout << endl;
-	// }
-
-// Optain all L
-	vector<Vector2d> L = computeL(nodes, elem, U, iCell, iNeighbor, iFaces, Minf, alphaDeg, Bn, bounds, interiorFaces, elemBounds);
-
-	//out L
-	// cout << "L" << endl;
-	// for (int i = 0; i < L.size(); i++) {
-	// // Loop through each element in the inner vector
-	// for (int j = 0; j < L[i].size(); j++) {
-	//     cout << L[i][j] << " ";
-	// }
-	// cout << endl;
-	// }
-
-// Obtain node states
-// Each row is a node and each col is a state variable
-	vector<vector<double>> uiN;
-	uiN.reserve(3);
-
-	// Iterate through each node
-	for (int iN = 0; iN < 3; iN++) {
-		vector<double> currState;
-		currState.reserve(4);
-		// Iterate through each state var.
-		for (int iU = 0; iU < 4; iU++) {
-			currState.emplace_back(u0[iU] + rN[iN].dot(L[iU]));
-		}
-		uiN.emplace_back(currState);
-
-	}
-
-	//out Uin
-	// cout << "Uin" << endl;
-	// for (int i = 0; i < uiN.size(); i++) {
-	// // Loop through each element in the inner vector
-	// for (int j = 0; j < uiN[i].size(); j++) {
-	//     cout << uiN[i][j] << " ";
-	// }
-	// cout << endl;
-	// }
-
-
-// Computing alphaNs
-	vector<double> alphas(4, DBL_MAX); // Final, minimul alpha values
-
-	for (int iN = 0; iN < 3; iN++) { // Iterate through each node
-
-		for (int iU = 0; iU < 4; iU++) { // Iterate through each state variable
-
-			if ((uiN[iN][iU] - u0[iU]) > 0) {
-
-				double alpha_iN = min(1.0, (uMAX[iU] - u0[iU]) / (uiN[iN][iU] - u0[iU]));
-
-				if (alpha_iN < alphas[iU]) {
-					alphas[iU] = alpha_iN;
-				}
-
-			}
-			else if ((uiN[iN][iU] - u0[iU]) < 0) {
-
-				double alpha_iN = min(1.0, (uMIN[iU] - u0[iU]) / (uiN[iN][iU] - u0[iU]));
-
-				if (alpha_iN < alphas[iU]) {
-					alphas[iU] = alpha_iN;
-				}
-
-			}
-			else {
-
-				double alpha_iN = 1.0;
-
-				if (alpha_iN < alphas[iU]) {
-					alphas[iU] = alpha_iN;
-				}
-			}
-
-		} // end loop for each state variable
-	} // end loop for each node
-
-		//out alpha
-		// cout << "Alpha" << endl;
-		// for (int i = 0; i < alphas.size(); i++) {
-		//     cout <<std::setprecision(15)<< alphas[i] << " ";
-		// cout << endl;
-		// }
-
-
-	// Scale the limeters
-	for (int iU = 0; iU < 4; iU++) {
-
-		L[iU] *= alphas[iU];
-
-	}
-
-	return L;
-
-}
-
-
-// vector<int> findAdjElem(vector<vector<double>> const& elem, vector<vector<double>> const& I2E, vector<vector<double>> const& B2E, vector<vector<int>> const& elemBounds, vector<vector<double>> const& bounds, vector<vector<double>> const& interiorFaces, vector<vector<int>> const& globalEdge, int iFaceGlobal) {
-
-// 	// COMPUTES THE L and R elems for an input face (if no adj element exists due to being on a boundary, negative value is used)
-// 	iGlobal2Local iLocal = iG2L(iFaceGlobal, bounds, interiorFaces);
-// 	vector<int> elemLR = { -1, -1 };
-
-// 	if (iLocal.isBound == false) { // interior edge
-// 		elemLR[0] = int(I2E[iLocal.index][0] - 1); // Left Element
-// 		elemLR[1] = int(I2E[iLocal.index][2] - 1); // Right Element
-// 	}
-
-// 	else { // boundary edge
-// 		elemLR[0] = int(B2E[iLocal.index][0] - 1); // Left Element
-// 		// No right element exists
-// 	}
-
-// 	return elemLR; // RETURNING L and R ELEMENT TO EDGE IN BASE-0 INDEXING
-
-// }
-
-
-// vector<int> findNeighbors(vector<vector<double>> const& elem, vector<vector<double>> const& I2E, vector<vector<double>> const& B2E, vector<vector<int>> const& elemBounds, vector<vector<double>> const& bounds, vector<vector<double>> const& interiorFaces, vector<vector<int>> const& globalEdge, int iElem) {
-// 	// iElem is 0-based
-// 	unordered_set<int> neighbors;
-
-// 	// finding all edges surrounding an element
-// 	vector<int> edges = { elemBounds[iElem][0], elemBounds[iElem][1], elemBounds[iElem][2] };
-
-// 	// populating the neighbor set
-// 	for (int iEdge = 0; iEdge < 3; iEdge++) {
-// 		neighbors.insert(edges[iEdge]);
-// 	}
-
-// 	// Populating vector containing all neighbor indices
-// 	vector<int> iNeighbors;
-// 	iNeighbors.insert(iNeighbors.end(), neighbors.begin(), neighbors.end());
-
-// 	// If we are on a boundary, some edges do not have an adjacent element, therefore indicate this with negative values
-// 	if (iNeighbors.size() == 1) {
-// 		iNeighbors.push_back(-1);
-// 		iNeighbors.push_back(-1);
-// 	}
-// 	else if (iNeighbors.size() == 2) {
-// 		iNeighbors.push_back(-1);
-// 	}
-
-// 	return iNeighbors;
-
-// }
-
+// Computes the length of an edge given the global edge index and the node coordinates
 double computeEdgeLength(int iFace, vector<vector<double>> const& face, vector<vector<double>> const& nodes) {
-	// Computes the length of an edge given the global edge index and the node coordinates
 	double n1x = nodes[int(face[iFace][0]) - 1][0];
 	double n1y = nodes[int(face[iFace][0]) - 1][1];
 	double n2x = nodes[int(face[iFace][1]) - 1][0];
@@ -537,7 +316,6 @@ double computeEdgeLength(int iFace, vector<vector<double>> const& face, vector<v
 	double deltaL = sqrt(pow(n2x - n1x, 2) + pow(n2y - n1y, 2));
 	return deltaL;
 }
-
 
 // Centroid of triangular element iElem.
 inline Vector2d elementCentroid(vector<vector<double>> const& nodes, vector<vector<double>> const& elem, int iElem) {
@@ -680,10 +458,6 @@ struct fvWorkspace {
 		: grad(size_t(nelem) * 8, 0.0), alpha(size_t(nelem) * 4, 1.0) {}
 };
 
-// Included here rather than at the top of the file: the limiters take an
-// fvWorkspace, so the struct above has to be complete first.
-#include "limiters.h"
-
 // Flat-array counterpart of computeBoundaryState: same wall projection and same
 // farfield state, writing four doubles instead of returning a vector.
 // if iswall is true, the normal velocity is projected out of the left state; if false, the
@@ -703,6 +477,11 @@ inline void boundaryStateFlat(const double* U_cell, bool isWall, const double* u
 	Ub[3] = U_cell[3];
 }
 
+// Included here rather than at the top of the file: the limiters need
+// fvWorkspace complete, and the LCD limiter builds the same ghost state the
+// residual does, so boundaryStateFlat has to be declared before it too.
+#include "limiters.h"
+
 // The flux is a template parameter, not a switch inside the loop: a function
 // pointer known at compile time is a direct, inlinable call, so the flux body
 // is folded into the face loop instead of costing a call per face.
@@ -715,50 +494,61 @@ static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
 	fill(R, R + size_t(nelem) * 5, 0.0); // clear the residual workspace
 
 	// Pass 1: grad(u)_i = (1/A_i) * sum over faces of uhat * n_out * dl
-	for (size_t i = 0; i < g.faces.size(); i++) {
-		faceCache const& f = g.faces[i];
-		const double* uL = u + size_t(f.iElemL) * 4;
-		double ghost[4];
-		const double* uR;
-		if (f.iElemR < 0) {
-			boundaryStateFlat(uL, f.isWall != 0, g.uinf, f.nx, f.ny, ghost);
-			uR = ghost;
-		} else {
-			uR = u + size_t(f.iElemR) * 4;
+	//
+	// Skipped for LCD: that limiter fits its own gradient - the plane through the
+	// three neighbouring centroids - and overwrites every entry of ws.grad, so
+	// computing Green-Gauss first would be thrown away in full.
+	if (limiterType != "LCD") {
+		for (size_t i = 0; i < g.faces.size(); i++) {
+			faceCache const& f = g.faces[i];
+			const double* uL = u + size_t(f.iElemL) * 4;
+			double ghost[4];
+			const double* uR;
+			if (f.iElemR < 0) {
+				boundaryStateFlat(uL, f.isWall != 0, g.uinf, f.nx, f.ny, ghost);
+				uR = ghost;
+			} else {
+				uR = u + size_t(f.iElemR) * 4;
+			}
+
+			double* gL = grad + size_t(f.iElemL) * 8;
+			if (f.iElemR >= 0) {
+				double* gR = grad + size_t(f.iElemR) * 8;
+				for (int k = 0; k < 4; k++) {
+					double c = 0.5 * (uL[k] + uR[k]) * f.len;
+					double cx = c * f.nx, cy = c * f.ny;
+					gL[k * 2] += cx; gL[k * 2 + 1] += cy;
+					// the same normal points INTO the right element, hence the sign flip
+					gR[k * 2] -= cx; gR[k * 2 + 1] -= cy;
+				}
+			} else {
+				for (int k = 0; k < 4; k++) {
+					double c = 0.5 * (uL[k] + uR[k]) * f.len;
+					gL[k * 2] += c * f.nx; gL[k * 2 + 1] += c * f.ny;
+				}
+			}
 		}
 
-		double* gL = grad + size_t(f.iElemL) * 8;
-		if (f.iElemR >= 0) {
-			double* gR = grad + size_t(f.iElemR) * 8;
-			for (int k = 0; k < 4; k++) {
-				double c = 0.5 * (uL[k] + uR[k]) * f.len;
-				double cx = c * f.nx, cy = c * f.ny;
-				gL[k * 2] += cx; gL[k * 2 + 1] += cy;
-				// the same normal points INTO the right element, hence the sign flip
-				gR[k * 2] -= cx; gR[k * 2 + 1] -= cy;
-			}
-		} else {
-			for (int k = 0; k < 4; k++) {
-				double c = 0.5 * (uL[k] + uR[k]) * f.len;
-				gL[k * 2] += c * f.nx; gL[k * 2 + 1] += c * f.ny;
-			}
+		// Dividing each gradient by its element area
+		for (int e = 0; e < nelem; e++) {
+			double* ge = grad + size_t(e) * 8;
+			double A = mesh.area[e];
+			for (int k = 0; k < 8; k++) ge[k] /= A;
 		}
 	}
 
-	// Dividing each gradient by its element area
-	for (int e = 0; e < nelem; e++) {
-		double* ge = grad + size_t(e) * 8;
-		double A = mesh.area[e];
-		for (int k = 0; k < 8; k++) ge[k] /= A;
-	}
-
-	// One limiter value per state variable per element. computeBarthJespersenLimiter
-	// writes every entry itself, so alpha only needs resetting when no limiter runs
-	// and the reconstruction below must stay unlimited.
+	// One limiter value per state variable per element. Both limiters write every
+	// entry themselves, so alpha only needs resetting when no limiter runs and the
+	// reconstruction below must stay unlimited. computeLCDLimiter additionally
+	// fills ws.grad, which is why the Green-Gauss pass above is skipped for it.
 	double* alpha = ws.alpha.data();
 	if (limiterType == "BJ") {
 		computeBarthJespersenLimiter(alpha, mesh, u, ws);
-	} else {
+	} 
+	else if (limiterType == "LCD") {
+		computeLCDLimiter(alpha, mesh, u, g, ws);
+	}
+	else {
 		fill(ws.alpha.begin(), ws.alpha.end(), 1.0);
 	}
 
@@ -802,9 +592,9 @@ static void secondOrderResidualImpl(meshData const& mesh, meshGeom const& g,
 // R must have room for nelem*5 doubles, u must hold nelem*4.
 inline void secondOrderResidual(meshData const& mesh, meshGeom const& g, fvWorkspace& ws,
 								int opt, const double* u, double* R, string const& limiterType) {
-	if (limiterType != "NONE" && limiterType != "BJ") {
+	if (limiterType != "NONE" && limiterType != "BJ" && limiterType != "LCD") {
 		cerr << "ERROR: limiterType \"" << limiterType << "\" is not implemented.\n"
-			 << "       Available: \"NONE\" (unlimited) and \"BJ\" (Barth-Jespersen).\n";
+			 << "       Available: \"NONE\" (unlimited), \"BJ\" (Barth-Jespersen), \"LCD\" (Least Constraining Discrete).\n";
 		exit(EXIT_FAILURE);
 	}
 	switch (opt) {
@@ -932,4 +722,4 @@ vector<vector<double>> secondOrderFV(meshData const& mesh, int opt, vector<vecto
 
 }
 
-#endif /* solver_h */
+#endif

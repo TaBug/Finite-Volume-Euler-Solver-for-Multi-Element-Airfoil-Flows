@@ -37,6 +37,7 @@ struct meshData {
 	// read, so the solver never has to hard-code group numbers
 	vector<vector<double>> bounds; // [boundID][node1, node2, bGroup, isWall]
 	vector<vector<double>> interiorFaces; // [faceID][node1, node2, leftElem, rightElem] - left/right element
+	vector<vector<double>> centroids; // [elemID][x, y] - element centroids, computed from the node coordinates
 	vector<vector<double>> r_node_centroid; // [elemID][node1_dx, node1_dy, node2_dx, node2_dy, node3_dx, node3_dy] - node coords MINUS the element centroid
 	vector<vector<double>> I2E; // [interiorFaceID][leftElem, leftFaceLocal, rightElem, rightFaceLocal]
 	vector<vector<double>> B2E; // [boundaryFaceID][elem, faceLocal, bGroup]
@@ -309,6 +310,19 @@ vector<vector<double>> genCentroid2NodesVec(struct meshData &mesh) {
 
 	for(int iElem = 0; iElem < mesh.nelem; iElem++) {
 
+		for(int iNode = 0; iNode < 3; iNode++) {
+			centroid2Nodes[iElem][2*iNode] = mesh.nodes[mesh.elem[iElem][iNode]-1][0] - mesh.centroids[iElem][0]; // x-offset, node - centroid
+			centroid2Nodes[iElem][2*iNode + 1] = mesh.nodes[mesh.elem[iElem][iNode]-1][1] - mesh.centroids[iElem][1]; // y-offset, node - centroid
+		}
+	}
+	return centroid2Nodes;
+}
+
+vector<vector<double>> genCentroidCoord(struct meshData &mesh) {
+	vector<vector<double>> centroidCood(mesh.nelem, vector<double>(2, 0.0));
+
+	for(int iElem = 0; iElem < mesh.nelem; iElem++) {
+
 		double cx = 0.0, cy = 0.0;
 		for(int iNode = 0; iNode < 3; iNode++) {
 			cx += mesh.nodes[mesh.elem[iElem][iNode]-1][0];
@@ -317,12 +331,10 @@ vector<vector<double>> genCentroid2NodesVec(struct meshData &mesh) {
 		cx /= 3.0;
 		cy /= 3.0;
 
-		for(int iNode = 0; iNode < 3; iNode++) {
-			centroid2Nodes[iElem][2*iNode] = mesh.nodes[mesh.elem[iElem][iNode]-1][0] - cx; // x-offset, node - centroid
-			centroid2Nodes[iElem][2*iNode + 1] = mesh.nodes[mesh.elem[iElem][iNode]-1][1] - cy; // y-offset, node - centroid
-		}
+		centroidCood[iElem][0] = cx;
+		centroidCood[iElem][1] = cy;
 	}
-	return centroid2Nodes;
+	return centroidCood;
 }
 
 
@@ -601,6 +613,7 @@ inline vector<double> genArea(meshData &mesh) {
 // the calls matters, since I2E feeds In and B2E feeds Bn.
 inline void buildMeshTopology(meshData &mesh) {
 	mesh.interiorFaces = genInteriorFaceVec(mesh);
+	mesh.centroids = genCentroidCoord(mesh);
 	mesh.r_node_centroid = genCentroid2NodesVec(mesh);
 	mesh.I2E = genI2E(mesh);
 	mesh.B2E = genB2E(mesh);
@@ -724,4 +737,4 @@ vector<double> verification(int nelem, vector<vector<double>> &I2E, vector<vecto
 	return err_mag;
 }
 
-#endif /* processMesh_h */
+#endif

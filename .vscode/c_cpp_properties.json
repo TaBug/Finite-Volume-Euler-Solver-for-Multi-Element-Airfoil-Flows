@@ -5,13 +5,11 @@
             "includePath": [
                 "${workspaceFolder}",
                 "${workspaceFolder}/gri",
-                "${env:USERPROFILE}/eigen-3.4.0",
-                "C:/Users/david/eigen-3.4.0"
+                "${env:USERPROFILE}/eigen-3.4.0"
             ],
             "defines": [
                 "_DEBUG",
                 "UNICODE",
-                "_UNICODE",
                 "_USE_MATH_DEFINES"
             ],
             "windowsSdkVersion": "10.0.26100.0",
@@ -19,7 +17,8 @@
             // so a bare "cl.exe" here leaves IntelliSense with no MSVC system headers
             // and every #include reports "cannot open source file". Update the
             // 14.51.36231 component if the VC toolset is upgraded.
-            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+            //"compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/18/BuildTools/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.42.34433/bin/Hostx64/x64/cl.exe",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "windows-msvc-x64"

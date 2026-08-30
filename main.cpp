@@ -118,7 +118,7 @@ int main() {
 
     // Choose the limiter type.
     string limiterType = "NONE";
-    cout << "Choose Limiter Type:\n" << "1 - None\n" << "2 - Barth-Jespersen\n" << "Enter Option: ";
+    cout << "Choose Limiter Type:\n" << "1 - None\n" << "2 - Barth-Jespersen\n" << "3 - LCD\n" << "Enter Option: ";
     int limiterOption;
     cin >> limiterOption;
     switch (limiterOption) {
@@ -127,6 +127,9 @@ int main() {
             break;
         case 2:
             limiterType = "BJ";
+            break;
+        case 3:
+            limiterType = "LCD";
             break;
         default:
             cerr << "ERROR: invalid limiter option " << limiterOption << "\n";

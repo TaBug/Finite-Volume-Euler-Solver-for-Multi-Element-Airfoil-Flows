@@ -12,7 +12,6 @@
 #include <cmath>
 #include <cfloat>
 #include <algorithm>
-#include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include "processMesh.h"
 #include "fluxes.h"

@@ -98,7 +98,7 @@ def plotMach(U, mesh, savePath=None, show=True):
     M = q / c
 
     f = plt.figure(figsize=(12, 6))
-    plt.tripcolor(X, Y, triangles=elem, facecolors=M, shading='flat', edgecolor='black')
+    plt.tripcolor(X, Y, triangles=elem, facecolors=M, shading='flat')
     cbar = plt.colorbar(orientation='vertical')
     cbar.ax.tick_params()
     plt.set_cmap('jet')

@@ -259,7 +259,7 @@ inline void computeLCDLimiter(double* alpha, meshData const& mesh, const double*
 		// span in (x, y), i.e. the common denominator of all four gradients.
 		double v1x = Ps[1][0] - Ps[0][0], v1y = Ps[1][1] - Ps[0][1];
 		double v2x = Ps[2][0] - Ps[0][0], v2y = Ps[2][1] - Ps[0][1];
-		double nz = - (v1x * v2y - v1y * v2x);
+		double nz = (v1x * v2y - v1y * v2x);
 		
 		// if (nz > 100) {
 		// 	cout << "nz: " << nz << "\n";
@@ -269,13 +269,13 @@ inline void computeLCDLimiter(double* alpha, meshData const& mesh, const double*
 			double v1z = Ps[1][k + 2] - Ps[0][k + 2];
 			double v2z = Ps[2][k + 2] - Ps[0][k + 2];
 			// n = v1 x v2; the plane's gradient is (-nx/nz, -ny/nz)
-			double nx = - (v1y * v2z - v1z * v2y);
-			double ny = - (v1z * v2x - v1x * v2z);
+			double nx = (v1y * v2z - v1z * v2y);
+			double ny = (v1z * v2x - v1x * v2z);
 			
 			// The plane's gradient is (-nx/nz, -ny/nz), 
 			// but if nz is very small the three points are nearly collinear and the plane is ill-defined.
 			// In that case, we set the gradient to zero to avoid numerical issues.
-			bool degenerate = nz < 1e-10;
+			bool degenerate = fabs(nz) < 1e-10;
 			double gx = degenerate ? 0.0 : -nx / nz;
 			double gy = degenerate ? 0.0 : -ny / nz;
 

@@ -10,12 +10,31 @@
 using namespace std;
 
 int main() {
-    // provided condition
     double gamma = 1.4; // ratio of specific heats
-    double Minf = 0.25; // freestream Mach number
-    double alphaDeg = 8.0; // angle of attack in degrees
+
+    // The two flow conditions the project statement specifies. Both share an
+    // angle of attack; only the freestream Mach number differs. Neither is
+    // recoverable from a state file afterwards - it holds nothing but the four
+    // conserved variables - so the choice is stamped into the solution name and
+    // read back from there by scripts/post_process.py.
+    cout << "Choose Flow Condition:\n"
+         << "1 - Subsonic  (Minf = 0.25, alpha = 8 deg)\n"
+         << "2 - Transonic (Minf = 0.50, alpha = 8 deg)\n"
+         << "Enter Option: ";
+    int flowOption;
+    cin >> flowOption;
+    if (!cin || (flowOption != 1 && flowOption != 2)) {
+        cerr << "ERROR: invalid flow condition (expected 1 = subsonic, 2 = transonic)\n";
+        exit(EXIT_FAILURE);
+    }
+    const double Minf = (flowOption == 1) ? 0.25 : 0.50; // freestream Mach number
+    const double alphaDeg = 8.0;                         // angle of attack in degrees
+    const string flowName = (flowOption == 1) ? "subsonic" : "transonic";
+    cout << "Flow Condition: " << flowName << " (Minf = " << Minf
+         << ", alpha = " << alphaDeg << " deg)\n";
+
     vector<double> uinf = computeFreestreamState(Minf, alphaDeg); // freestream state vector [rho, rho*u, rho*v, rho*E]
- 
+
     // let the user pick one of the meshes in the gri folder
     string fileNameGri = chooseGriFile();
     cout << "Mesh File (.gri): " << fileNameGri << "\n";
@@ -40,15 +59,20 @@ int main() {
     // below. stem() drops the "gri/" and the ".gri".
     const string meshName = filesystem::path(fileNameGri).stem().string();
 
-    // name the files after the flux, CFL, mesh and - for the second-order runs -
-    // the limiter, so the results are self-describing and a reloaded solution can
-    // be traced back to the settings that made it.
+    // name the files after the flux, CFL, flow condition, mesh and - for the
+    // second-order runs - the limiter, so the results are self-describing and a
+    // reloaded solution can be traced back to the settings that made it:
+    //
+    //     <flux>_CFL<cfl>_<order>_<flow>_<mesh>[_<limiter>].dat
+    //
     // Field order is load-bearing at both ends. filename2settings reads the flux
-    // off the front and the CFL after "CFL", so everything after those is free;
+    // off the front and the CFL after "CFL", so everything past those is free;
     // post_process.py reads the limiter off the LAST underscore-separated field,
-    // so the mesh goes BEFORE the tag rather than after it. Mesh names may
-    // themselves contain underscores ("smoothed_local_all") - that is fine,
-    // since neither parse counts fields from the middle.
+    // so mesh and limiter stay at the tail in that order. The flow tag goes
+    // between the order and the mesh, which leaves the whole
+    // "<flux>_CFL<cfl>_<order>" prefix untouched and keeps the mesh adjacent to
+    // the limiter. Mesh names may themselves contain underscores
+    // ("smoothed_local_all") - fine, since no parse counts fields from the middle.
     // to_string(CFL) is avoided: it always emits 6 decimals, giving "CFL0.700000"
     auto solutionFile = [&](const string &order, const string &tag = "") {
         ostringstream cflStr;
@@ -56,7 +80,8 @@ int main() {
         // first- and second-order solutions go to their own subfolders; openForWrite
         // creates the folder, so neither has to exist beforehand
         return "dat/" + order + "/" + string(fluxName[opt]) + "_CFL" + cflStr.str()
-               + "_" + order + "_" + meshName + (tag.empty() ? "" : "_" + tag) + ".dat";
+               + "_" + order + "_" + flowName + "_" + meshName
+               + (tag.empty() ? "" : "_" + tag) + ".dat";
     };
 
     // initialize the state to free-stream condition
@@ -82,6 +107,19 @@ int main() {
                  << " elements but the mesh has " << mesh.nelem << "\n"
                  << "       The solution was written on a different mesh.\n";
             exit(EXIT_FAILURE);
+        }
+
+        // The flow condition is not recoverable from the state either, so a
+        // subsonic restart marched under transonic freestream conditions would
+        // run to convergence and quietly produce a wrong answer. The name records
+        // which one it was, so say so when it disagrees with what was picked
+        // above. Only a warning: a deliberate cross-condition restart is a
+        // legitimate way to reach a harder case.
+        const string otherFlow = (flowOption == 1) ? "transonic" : "subsonic";
+        if (filename.find("_" + otherFlow + "_") != string::npos) {
+            cerr << "WARNING: '" << filename << "' was written at the " << otherFlow
+                 << " condition,\n         but this run is set up for " << flowName
+                 << " (Minf = " << Minf << "). Continuing anyway.\n";
         }
 
         // opt and CFL are set by FVM1st in the branch above, so this branch has to

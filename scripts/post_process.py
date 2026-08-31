@@ -7,13 +7,37 @@ from readgri import readgri
 
 LIMITER_NAMES = ('NONE', 'BJ', 'LCD')  # must match the limiterType strings main.cpp writes
 
+# The two flow conditions main.cpp offers, keyed by the tag it writes into the
+# solution name. Values are (Minf, alphaDeg) and must match the constants there -
+# a state file records only the four conserved variables, so this tag is the only
+# trace of which condition produced it.
+FLOW_CONDITIONS = {
+    'subsonic':  (0.25, 8.0),
+    'transonic': (0.50, 8.0),
+}
+
+
+def flowFromDat(datFile):
+    """(name, Minf, alphaDeg) read off the solution name, or None if not tagged.
+
+    Solutions written before the flow tag existed carry no such field, and then
+    the caller has to ask - guessing would silently normalise cp by the wrong
+    dynamic pressure and put plausible-looking numbers in the report.
+    """
+    fields = Path(datFile).stem.split('_')
+    for name in fields:
+        if name in FLOW_CONDITIONS:
+            Minf, alphaDeg = FLOW_CONDITIONS[name]
+            return name, Minf, alphaDeg
+    return None
+
 
 def limiterTag(datFile):
     """Limiter suffix to put in a figure name, or None for a first-order result.
 
     main.cpp names second-order solutions
-    dat/secondOrder/<flux>_CFL<cfl>_secondOrder_<limiter>.dat, so the limiter is
-    normally already the last field of the stem and is returned
+    dat/secondOrder/<flux>_CFL<cfl>_secondOrder_<flow>_<mesh>_<limiter>.dat, so
+    the limiter is normally already the last field of the stem and is returned
     as-is. Files written before that suffix existed are still second-order but
     record nothing about the limiter, and their plots would otherwise be
     indistinguishable from a tagged run - those are marked "limUnknown".
@@ -242,9 +266,15 @@ def meshFromDat(datFile, folder='gri'):
     stem = Path(datFile).stem
     fields = stem.split('_')
 
-    if len(fields) > 3 and fields[1].lower().startswith('cfl'):
-        middle = fields[3:]                      # everything past <flux>_CFL<cfl>_<order>
-        if middle and middle[-1] in LIMITER_NAMES:
+    # Locate the order field by name rather than by position: that way an added
+    # or missing flow tag shifts nothing, and files from either naming still parse.
+    orderAt = next((i for i, f in enumerate(fields)
+                    if f in ('firstOrder', 'secondOrder')), None)
+    if orderAt is not None:
+        middle = fields[orderAt + 1:]
+        if middle and middle[0] in FLOW_CONDITIONS:   # flow tag, when present
+            middle = middle[1:]
+        if middle and middle[-1] in LIMITER_NAMES:    # limiter, on second order
             middle = middle[:-1]
         if middle:
             guess = root / ('_'.join(middle) + '.gri')
@@ -308,12 +338,21 @@ def main():
         print("Could not tell which mesh " + Path(datFile).name + " was computed on.")
         mesh = chooseFile('gri', '.gri', 'Choose Mesh File (.gri)')
 
-    Minf = args.minf if args.minf is not None else promptFloat('Freestream Mach number', 0.25)
-    alpha = args.alpha if args.alpha is not None else promptFloat('Angle of attack (degrees)', 8.0)
+    # Same idea for the flow condition: main.cpp stamps subsonic/transonic into
+    # the name, so neither number normally has to be typed. An explicit flag still
+    # wins, which is how a run at some other condition gets plotted.
+    flow = flowFromDat(datFile)
+    flowSource = None
+    if flow is not None and args.minf is None and args.alpha is None:
+        flowName, Minf, alpha = flow
+        flowSource = f"{flowName}, from solution name"
+    else:
+        Minf = args.minf if args.minf is not None else promptFloat('Freestream Mach number', 0.25)
+        alpha = args.alpha if args.alpha is not None else promptFloat('Angle of attack (degrees)', 8.0)
 
     print(f"solution: {datFile}")
     print(f"mesh:     {mesh}" + (f"  ({meshSource})" if meshSource else ""))
-    print(f"Minf = {Minf}, alpha = {alpha} deg")
+    print(f"Minf = {Minf}, alpha = {alpha} deg" + (f"  ({flowSource})" if flowSource else ""))
 
     u = np.loadtxt(datFile)
     uInf = computeFreestreamState(Minf, alpha)

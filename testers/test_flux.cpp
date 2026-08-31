@@ -2,8 +2,8 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
-#include "fluxes.h"
-#include "solver.h"
+#include "../fluxes.h"
+#include "../solver.h"
 using namespace std;
 
 /* Test the Roe, Rusanov, and HLLE fluxes over a boundary with a 30 degree angle of attack */

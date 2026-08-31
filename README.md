@@ -18,9 +18,7 @@ processMesh.h         .gri reader and mesh topology (I2E, B2E, E2F, normals)
 data_conversion.h     state <-> text, filename <-> settings
 tools.h               small shared helpers
 
-verify_solver.cpp     optimized path vs. reference implementation, plus timings
-test_flux.cpp         flux function checks
-profile_*.cpp         profiling harnesses for the residual and allocations
+testers/test_flux.cpp flux function checks
 
 gri/                  meshes the solver reads
 msh/                  the gmsh sources the .gri files came from
@@ -53,11 +51,25 @@ to `dat/`, both relative to the working directory.
 main.exe
 ```
 
-It prompts for the flux function, CFL, and limiter. Solutions are named
-`dat/<order>/<flux>_CFL<cfl>_<order>_<mesh>[_<limiter>].dat`, so a file records the
-settings that produced it; `data_conversion.h` reads the flux and CFL back out of
-that name when a solution is reloaded. The limiter stays last because
-`scripts/post_process.py` reads it off the final field, so the mesh sits before it.
+It prompts for the flow condition, mesh, flux function, CFL, and limiter. The two
+flow conditions are the ones the project statement specifies, both at 8 degrees
+angle of attack:
+
+| | Minf | alpha |
+|---|---|---|
+| subsonic  | 0.25 | 8 deg |
+| transonic | 0.50 | 8 deg |
+
+Solutions are named
+`dat/<order>/<flux>_CFL<cfl>_<order>_<flow>_<mesh>[_<limiter>].dat`, so a file
+records the settings that produced it; `data_conversion.h` reads the flux and CFL
+back out of that name when a solution is reloaded, and `scripts/post_process.py`
+reads the flow condition and mesh. A state file holds only the four conserved
+variables, so the name is the only record of which condition produced it —
+reloading a first-order solution written at the other condition prints a warning.
+
+The limiter stays last because `post_process.py` reads it off the final field;
+mesh and flow sit before it.
 
 ## Post-processing
 
@@ -65,10 +77,10 @@ that name when a solution is reloaded. The limiter stays last because
 python scripts/post_process.py       # cp plot, Mach contours, cl and cd
 ```
 
-It lists the solutions in `dat/` and asks which one to plot, then asks for the
-freestream Mach number and angle of attack, which no file records. The mesh is
-read out of the solution's own name, so it only asks when that fails - a file
-written before the mesh was part of the name.
+It lists the solutions in `dat/` and asks which one to plot. The mesh and the flow
+condition are both read out of the solution's own name, so nothing else normally
+has to be answered; it falls back to asking only when the name predates that
+scheme.
 
 Every answer can be given up front instead, which is also how to run it
 unattended:
@@ -84,10 +96,15 @@ after the solution and the mesh.
 ## Checks
 
 ```
-build_opt.bat verify_solver.cpp verify_solver.exe
-verify_solver.exe c1.gri 20
+.vscode\build.bat testers\test_flux.cpp test_flux.exe
+test_flux.exe
 ```
 
-Marches the same initial condition through the reference implementation and the
-optimized path and reports the largest difference between them, which should be
-zero, along with the speedup.
+Evaluates all three fluxes across a boundary at a 30 degree angle of attack and
+prints them for comparison against the hand calculation in the report.
+
+The old `verify_solver` and `profile_*` harnesses are gone. They existed to check
+and time the optimized residual against `secondOrderFV`, a nested-vector
+reference implementation of the same scheme; that reference has been removed, so
+they had nothing left to compare against. `git log` has them if the comparison is
+ever needed again.

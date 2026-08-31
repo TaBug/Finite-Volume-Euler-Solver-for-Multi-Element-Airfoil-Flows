@@ -87,7 +87,7 @@ vector<vector<double>> getRes(const meshData& mesh, int& opt, vector<vector<doub
             // Bn points OUT of the domain, i.e. out of uTemp's element, so the
             // interior state is the LEFT one and the freestream is the ghost on
             // the right - the same orientation the interior loop above uses, and
-            // the same one secondOrderFV uses. Passing (uinf, uTemp) instead put
+            // the same one the second-order residual uses. Passing (uinf, uTemp) put
             // the exterior state on the left while leaving the normal pointing
             // outward, which negates the central part of the flux while leaving
             // the dissipation alone (F(a,b,n) = 0.5(f(a)+f(b)).n - 0.5s(b-a), so
